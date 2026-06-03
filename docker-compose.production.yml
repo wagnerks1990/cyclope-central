@@ -1,0 +1,92 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../docker/backend.Dockerfile
+    environment:
+      CYCLOPE_ENVIRONMENT: production
+      CYCLOPE_DATABASE_URL: ${CYCLOPE_DATABASE_URL}
+      CYCLOPE_REDIS_URL: ${CYCLOPE_REDIS_URL}
+      CYCLOPE_CORS_ALLOWED_ORIGINS: ${CYCLOPE_CORS_ALLOWED_ORIGINS}
+      CYCLOPE_JWT_SECRET: ${CYCLOPE_JWT_SECRET}
+      CYCLOPE_TOKEN_HASH_PEPPER: ${CYCLOPE_TOKEN_HASH_PEPPER}
+      CYCLOPE_SMTP_HOST: ${CYCLOPE_SMTP_HOST}
+      CYCLOPE_SMTP_PORT: ${CYCLOPE_SMTP_PORT}
+      CYCLOPE_SMTP_FROM_EMAIL: ${CYCLOPE_SMTP_FROM_EMAIL}
+      CYCLOPE_SMTP_USE_TLS: ${CYCLOPE_SMTP_USE_TLS}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../docker/frontend.Dockerfile
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  rustdesk-hbbs:
+    image: rustdesk/rustdesk-server:latest
+    command: hbbs -r ${RUSTDESK_RELAY_HOST}:21117
+    ports:
+      - "21115:21115/tcp"
+      - "21116:21116/tcp"
+      - "21116:21116/udp"
+      - "21118:21118/tcp"
+    volumes:
+      - rustdesk-data:/data
+    restart: unless-stopped
+
+  rustdesk-hbbr:
+    image: rustdesk/rustdesk-server:latest
+    command: hbbr
+    ports:
+      - "21117:21117/tcp"
+      - "21119:21119/tcp"
+    volumes:
+      - rustdesk-data:/data
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:
+  rustdesk-data:
