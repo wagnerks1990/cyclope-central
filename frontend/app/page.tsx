@@ -14,12 +14,16 @@ function formatDate(value?: string | null) {
 
 export default function DashboardPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [operations, setOperations] = useState<Record<string, number> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchJson<DashboardSummary>("/dashboard/summary")
-      .then(setSummary)
+    Promise.all([
+      fetchJson<DashboardSummary>("/dashboard/summary"),
+      fetchJson<{ widgets: Record<string, number> }>("/dashboard/operations").catch(() => ({ widgets: {} }))
+    ])
+      .then(([dashboard, ops]) => { setSummary(dashboard); setOperations(ops.widgets); })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
@@ -38,7 +42,7 @@ export default function DashboardPage() {
       <section className="rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 p-6 shadow-2xl sm:p-10">
         <p className="text-sm font-medium uppercase tracking-[0.3em] text-cyan-300">Monitoring overview</p>
         <h1 className="mt-4 max-w-3xl text-4xl font-bold tracking-tight sm:text-6xl">Cyclope Central health dashboard.</h1>
-        <p className="mt-6 max-w-2xl text-lg text-slate-300">Read-only check-ins and inventory are evaluated into deterministic health alerts. Remote access and command execution remain out of scope.</p>
+        <p className="mt-6 max-w-2xl text-lg text-slate-300">Unified MSP operations across devices, alerts, tickets, assets, discovery, reports, platform health, and audited remote sessions.</p>
       </section>
       {loading && <p className="mt-6 rounded-xl border border-slate-800 bg-slate-900 p-4 text-slate-300">Loading dashboard summary…</p>}
       {error && <p className="mt-6 rounded-xl border border-red-900 bg-red-950/40 p-4 text-red-200">Unable to load dashboard: {error}</p>}
@@ -48,6 +52,14 @@ export default function DashboardPage() {
             <card.icon className="text-cyan-300" aria-hidden="true" />
             <p className="mt-4 text-sm text-slate-400">{card.label}</p>
             <p className="mt-1 text-3xl font-semibold">{card.value}</p>
+          </article>
+        ))}
+      </section>
+      <section className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        {["open_tickets", "discovered_devices", "assets", "warranty_expiring", "report_runs", "recent_remote_sessions", "recent_documentation_updates", "ai_insights"].map((key) => (
+          <article key={key} className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+            <p className="text-sm capitalize text-slate-400">{key.replaceAll("_", " ")}</p>
+            <p className="mt-2 text-2xl font-semibold">{operations?.[key] ?? 0}</p>
           </article>
         ))}
       </section>

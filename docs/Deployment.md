@@ -51,3 +51,11 @@ cp .env.example .env
 ```
 
 Use `./scripts/dev-down.sh` to stop local services. Remote access, arbitrary scripting, remote shell, and remote desktop remain out of scope.
+
+## Production readiness phase 3
+
+Use `docker-compose.production.yml` for production-style startup ordering, health checks, named volumes, and restart policies. Put all secrets in an environment file that is not committed. The production settings validator rejects placeholder JWT/token secrets.
+
+Reverse proxy examples live in `infrastructure/reverse-proxy/`. Terminate HTTPS at the proxy and forward `/api/` to the backend and all other dashboard traffic to the frontend. RustDesk ports require raw TCP/UDP forwarding and should not be placed behind an HTTP-only proxy.
+
+Supported deployment targets are Docker Compose on a Linux VM, Unraid Docker, Proxmox LXC/VM, or an equivalent self-hosted Linux host. For backups, create database backup jobs and validate backup artifacts; automated restore is intentionally not implemented and restore steps should be rehearsed manually from documented database dumps.

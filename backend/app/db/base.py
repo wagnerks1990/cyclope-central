@@ -17,6 +17,21 @@ from app.models.network_interface_inventory import NetworkInterfaceInventory
 from app.models.notification_channel import NotificationChannel
 from app.models.notification_delivery import NotificationDelivery
 from app.models.notification_rule import NotificationRule
+from app.models.phase3 import (
+    APIKey,
+    BackupJob,
+    BackupRun,
+    DashboardPreference,
+    PortalRole,
+    PortalSession,
+    PortalUser,
+    ServiceStatus,
+    SystemHealth,
+    Workflow,
+    WorkflowAction,
+    WorkflowExecution,
+    WorkflowTrigger,
+)
 from app.models.phase2 import (
     AIConversation,
     AIInsight,
@@ -116,4 +131,17 @@ __all__ = [
     "ReportTemplate",
     "ReportRun",
     "ReportSchedule",
+    "DashboardPreference",
+    "PortalRole",
+    "PortalUser",
+    "PortalSession",
+    "Workflow",
+    "WorkflowTrigger",
+    "WorkflowAction",
+    "WorkflowExecution",
+    "APIKey",
+    "SystemHealth",
+    "ServiceStatus",
+    "BackupJob",
+    "BackupRun",
 ]

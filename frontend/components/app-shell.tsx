@@ -16,6 +16,8 @@ const navItems = [
   { href: "/documentation", label: "Documentation" },
   { href: "/reports", label: "Reports" },
   { href: "/ai", label: "AI Assistant" },
+  { href: "/platform", label: "Platform" },
+  { href: "/portal", label: "Portal" },
   { href: "/alerts", label: "Alerts" },
   { href: "/settings", label: "Settings" }
 ];
@@ -51,6 +53,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span className="block text-xs text-slate-400">Private MSP/RMM foundation</span>
             </span>
           </Link>
+          <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center lg:justify-end">
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-xs text-slate-400">
+              <span>Global search</span><kbd className="rounded bg-slate-800 px-2 py-1 text-slate-300">/</kbd><span>Command palette</span><kbd className="rounded bg-slate-800 px-2 py-1 text-slate-300">⌘K</kbd><span>Notifications center</span>
+            </div>
           <nav className="flex flex-wrap items-center gap-2">
             {navItems.map((item) => (
               <Button key={item.href} asChild variant="ghost">
@@ -70,6 +76,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Button>
             )}
           </nav>
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-7xl px-4 py-8 lg:px-8">{children}</main>

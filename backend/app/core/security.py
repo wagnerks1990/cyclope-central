@@ -39,6 +39,7 @@ ROLE_PERMISSIONS = {
         "remote:read", "remote:launch", "remote:manage", "assets:read", "assets:write",
         "documentation:read", "documentation:write", "discovery:read", "discovery:write",
         "tickets:read", "tickets:write", "reports:read", "reports:write", "ai:read",
+        "portal:manage", "automation:manage", "api_keys:manage", "platform:read", "backups:manage",
     },
     "owner": {
         "dashboard:read", "devices:read", "alerts:read", "alerts:acknowledge",
@@ -46,7 +47,8 @@ ROLE_PERMISSIONS = {
         "users:manage", "organization:manage", "remote:read", "remote:launch", "remote:manage",
         "assets:read", "assets:write", "documentation:read", "documentation:write",
         "discovery:read", "discovery:write", "tickets:read", "tickets:write",
-        "reports:read", "reports:write", "ai:read",
+        "reports:read", "reports:write", "ai:read", "portal:manage", "automation:manage",
+        "api_keys:manage", "platform:read", "backups:manage",
     },
 }
 ACCESS_TOKEN_MINUTES = 15

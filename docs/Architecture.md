@@ -93,3 +93,13 @@ RustDesk OSS is integrated as an external remote desktop provider. Cyclope Centr
 ## MSP Operations Phase 2
 
 Phase 2 adds tenant-scoped operations modules for asset management, documentation, discovery, ticketing, local AI query abstraction, and reporting. These modules reuse the existing RBAC and audit-log patterns: viewers receive read-only access, technicians can work tickets/assets/discovery, admins manage operations, and owners retain tenant administration. The AI assistant is a local provider abstraction only and does not call external LLM APIs. Documentation explicitly excludes password vaults, credential storage, and secret management. Discovery jobs are discovery-only and do not perform exploitation, vulnerability scanning, credential harvesting, arbitrary command execution, or PowerShell execution.
+
+## Phase 3 Production Readiness Architecture
+
+The production-readiness layer adds platform-completion modules without weakening the existing tenant boundary model. `DashboardPreference` stores per-user widget layout choices, while the unified operations dashboard aggregates counts from devices, alerts, tickets, assets, discovery, documentation, reports, remote-session audit, and AI insight tables using the authenticated user's organization scope.
+
+Customer portal identities are stored separately from operator users through `PortalUser`, `PortalRole`, and `PortalSession`. Portal sessions are tenant scoped, password hashes are stored instead of plaintext passwords, and portal data access is designed to expose only customer-facing ticket, asset, device, documentation, and report views for the assigned organization.
+
+The automation engine stores workflows, triggers, actions, and executions as auditable tenant data. Actions are limited to existing safe platform capabilities such as creating tickets, sending notifications, generating reports, or running already-approved agent job types. Workflow definitions do not accept scripts, shell text, PowerShell, credentials, or arbitrary commands.
+
+The API platform introduces tenant-scoped API keys with one-time plaintext display and stored hashes only. Observability records internal `SystemHealth` and `ServiceStatus` snapshots for backend, database, Redis, RustDesk, and agent-connectivity status. Backup tracking records jobs and runs for auditability and validation history, but automated restore is deliberately excluded.

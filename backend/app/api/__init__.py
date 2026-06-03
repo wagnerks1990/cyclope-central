@@ -11,6 +11,7 @@ from app.api.devices import router as devices_router
 from app.api.jobs import router as jobs_router
 from app.api.notifications import router as notifications_router
 from app.api.operations import router as operations_router
+from app.api.phase3 import router as phase3_router
 from app.api.remote import router as remote_router
 from app.api.users import router as users_router
 from app.core.config import settings
@@ -50,5 +51,6 @@ router.include_router(devices_router)
 router.include_router(jobs_router)
 router.include_router(notifications_router)
 router.include_router(operations_router)
+router.include_router(phase3_router)
 router.include_router(remote_router)
 router.include_router(users_router)

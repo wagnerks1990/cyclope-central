@@ -210,3 +210,20 @@ Set `RUSTDESK_SERVER_HOST`, `RUSTDESK_RELAY_HOST`, and `RUSTDESK_PUBLIC_KEY` in 
 ## MSP Operations Phase 2 local checks
 
 Phase 2 APIs are available under `/api/assets`, `/api/documentation/*`, `/api/discovery/*`, `/api/tickets`, `/api/ai/query`, and `/api/reports/*`. Use owner/admin/technician test users to validate write permissions and viewer users to validate read-only behavior. Discovery agent jobs are limited to `network_discovery`, `arp_scan`, `dns_discovery`, and `snmp_discovery` payload validation and safe local discovery summaries.
+
+## Phase 3 Production Readiness local checks
+
+Phase 3 APIs are registered under `/api/dashboard/operations`, `/api/dashboard/preferences`, `/api/portal/*`, `/api/automation/*`, `/api/platform/*`, `/api/backups/*`, and `/api/reports/phase3/*`. Use owner/admin tokens for management paths and viewer/technician tokens to validate denied writes where appropriate.
+
+Useful smoke checks after `alembic upgrade head` and first-run setup:
+
+```bash
+curl -H "Authorization: Bearer <owner-access-token>" http://localhost:8000/api/dashboard/operations
+curl -H "Authorization: Bearer <owner-access-token>" http://localhost:8000/api/platform/health
+curl -X POST http://localhost:8000/api/platform/api-keys \
+  -H "Authorization: Bearer <owner-access-token>" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Local integration","scopes":["devices:read","tickets:read"]}'
+```
+
+The API key plaintext is returned once only. Store no real secrets in tests or committed env files. Workflow tests must continue to reject scripts, PowerShell, shell commands, credential collection, custom remote desktop, and other arbitrary execution paths.

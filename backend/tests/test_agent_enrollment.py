@@ -1260,3 +1260,109 @@ def test_phase2_discovery_job_type_allowed(client: TestClient, db: Session) -> N
 
     assert response.status_code == 201
     assert response.json()["job_type"] == "network_discovery"
+
+
+def test_phase3_dashboard_preferences_and_operations_summary(client: TestClient, db: Session) -> None:
+    org = create_org(db)
+    headers = auth_headers(db, org, role="viewer", email="dash-viewer@example.test")
+
+    saved = client.put(
+        "/api/dashboard/preferences",
+        json={"layout": {"columns": 3}, "role_widgets": ["device_health", "open_tickets"]},
+        headers=headers,
+    )
+    prefs = client.get("/api/dashboard/preferences", headers=headers)
+    summary = client.get("/api/dashboard/operations", headers=headers)
+
+    assert saved.status_code == 200
+    assert prefs.json()["layout"]["columns"] == 3
+    assert summary.status_code == 200
+    assert "open_tickets" in summary.json()["widgets"]
+
+
+def test_phase3_api_key_created_once_and_hash_not_returned(client: TestClient, db: Session) -> None:
+    org = create_org(db)
+    owner_headers = auth_headers(db, org, role="owner", email="api-owner@example.test")
+    viewer_headers = auth_headers(db, org, role="viewer", email="api-viewer@example.test")
+
+    denied = client.post("/api/platform/api-keys", json={"name": "viewer-key"}, headers=viewer_headers)
+    created = client.post("/api/platform/api-keys", json={"name": "prod-api", "scopes": ["devices:read"]}, headers=owner_headers)
+    listed = client.get("/api/platform/api-keys", headers=owner_headers)
+
+    assert denied.status_code == 403
+    assert created.status_code == 201
+    assert created.json()["api_key"].startswith("cc_")
+    assert "key_hash" not in created.text
+    assert "api_key" not in listed.text
+
+
+def test_phase3_workflow_rejects_unsafe_job_action(client: TestClient, db: Session) -> None:
+    org = create_org(db)
+    headers = auth_headers(db, org, role="admin", email="workflow-admin@example.test")
+
+    unsafe = client.post(
+        "/api/automation/workflows",
+        json={
+            "name": "Unsafe workflow",
+            "trigger_type": "alert_created",
+            "action_type": "run_approved_agent_job",
+            "action_config": {"job_type": "run_shell"},
+        },
+        headers=headers,
+    )
+    safe = client.post(
+        "/api/automation/workflows",
+        json={
+            "name": "Create ticket on alert",
+            "trigger_type": "alert_created",
+            "action_type": "create_ticket",
+            "action_config": {},
+        },
+        headers=headers,
+    )
+
+    assert unsafe.status_code == 400
+    assert safe.status_code == 201
+
+
+def test_phase3_portal_user_login_and_platform_health(client: TestClient, db: Session) -> None:
+    org = create_org(db)
+    headers = auth_headers(db, org, role="owner", email="portal-owner@example.test")
+
+    portal = client.post(
+        "/api/portal/users",
+        json={"email": "customer@example.test", "display_name": "Customer User", "password": "CorrectHorseBatteryStaple!5"},
+        headers=headers,
+    )
+    login = client.post("/api/portal/login", json={"email": "customer@example.test", "password": "CorrectHorseBatteryStaple!5"})
+    health = client.get("/api/platform/health", headers=headers)
+
+    assert portal.status_code == 201
+    assert "hashed_password" not in portal.text
+    assert login.status_code == 200
+    assert login.json()["portal_token"]
+    assert health.status_code == 200
+    assert health.json()["services"]
+
+
+def test_phase3_backup_and_json_report_run(client: TestClient, db: Session) -> None:
+    org = create_org(db)
+    headers = auth_headers(db, org, role="admin", email="backup-admin@example.test")
+
+    job = client.post(
+        "/api/backups/jobs",
+        json={"name": "Nightly DB", "schedule": "daily", "target": "local:/backups"},
+        headers=headers,
+    )
+    run = client.post(f"/api/backups/jobs/{job.json()['id']}/runs", headers=headers)
+    report = client.post(
+        "/api/reports/phase3/runs",
+        json={"report_type": "executive_summary", "format": "json"},
+        headers=headers,
+    )
+
+    assert job.status_code == 201
+    assert run.status_code == 201
+    assert run.json()["validation_status"] == "pending"
+    assert report.status_code == 201
+    assert report.json()["format"] == "json"
