@@ -1,0 +1,10 @@
+{
+  "tenant_id": "00000000-0000-0000-0000-000000000000",
+  "install_id": "example-install-id",
+  "device_id": "",
+  "device_secret": "",
+  "api_base_url": "https://cyclope.example.com/api",
+  "agent_token": "replace-with-enrollment-token-before-enroll",
+  "log_level": "INFO",
+  "service_name": "CyclopeCentralAgent"
+}
