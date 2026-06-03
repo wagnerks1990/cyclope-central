@@ -883,3 +883,78 @@ def test_owner_can_manage_users_without_exposing_password_hashes(
     assert disabled.json()["is_active"] is False
     assert enabled.status_code == 200
     assert enabled.json()["is_active"] is True
+
+
+def test_bootstrap_status_before_setup(client: TestClient) -> None:
+    response = client.get("/api/bootstrap/status")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "has_organization": False,
+        "has_owner": False,
+        "setup_required": True,
+    }
+
+
+def test_successful_first_setup_returns_auth_response(client: TestClient, db: Session) -> None:
+    response = client.post(
+        "/api/bootstrap/setup",
+        json={
+            "organization_name": "Fresh MSP",
+            "owner_name": "First Owner",
+            "owner_email": "first-owner@example.test",
+            "owner_password": "CorrectHorseBatteryStaple!3",
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["access_token"]
+    assert body["refresh_token"]
+    assert body["user"]["role"] == "owner"
+    assert "hashed_password" not in response.text
+    assert db.scalar(select(User).where(User.email == "first-owner@example.test")) is not None
+
+
+def test_setup_blocked_after_first_owner_exists(client: TestClient, db: Session) -> None:
+    org = create_org(db)
+    auth_headers(db, org, role="owner", email="existing-owner@example.test")
+
+    response = client.post(
+        "/api/bootstrap/setup",
+        json={
+            "organization_name": "Blocked MSP",
+            "owner_name": "Blocked Owner",
+            "owner_email": "blocked@example.test",
+            "owner_password": "CorrectHorseBatteryStaple!4",
+        },
+    )
+
+    assert response.status_code == 409
+
+
+def test_bootstrap_weak_password_rejected(client: TestClient) -> None:
+    response = client.post(
+        "/api/bootstrap/setup",
+        json={
+            "organization_name": "Weak MSP",
+            "owner_name": "Weak Owner",
+            "owner_email": "weak@example.test",
+            "owner_password": "weakpassword",
+        },
+    )
+
+    assert response.status_code == 400
+
+
+def test_production_insecure_secret_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.core.config import Settings
+
+    monkeypatch.setenv("CYCLOPE_ENVIRONMENT", "production")
+    monkeypatch.setenv("CYCLOPE_DATABASE_URL", "postgresql+psycopg://example")
+    monkeypatch.setenv("CYCLOPE_REDIS_URL", "redis://redis:6379/0")
+    monkeypatch.setenv("CYCLOPE_CORS_ALLOWED_ORIGINS", "https://central.example.test")
+    monkeypatch.setenv("CYCLOPE_JWT_SECRET", "change-me-in-production")
+
+    with pytest.raises(ValueError):
+        Settings()

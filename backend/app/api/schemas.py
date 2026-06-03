@@ -379,3 +379,16 @@ class UserPatchRequest(BaseModel):
     email: str | None = None
     password: str | None = Field(default=None, min_length=12)
     role: str | None = None
+
+
+class BootstrapStatusResponse(BaseModel):
+    has_organization: bool
+    has_owner: bool
+    setup_required: bool
+
+
+class BootstrapSetupRequest(BaseModel):
+    organization_name: str = Field(min_length=2, max_length=255)
+    owner_name: str = Field(min_length=1, max_length=255)
+    owner_email: str
+    owner_password: str = Field(min_length=12)

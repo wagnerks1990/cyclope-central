@@ -1,15 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/button";
-import { login } from "@/lib/api";
+import { type BootstrapStatus, fetchJson, login } from "@/lib/api";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchJson<BootstrapStatus>("/bootstrap/status").then((status) => {
+      if (status.setup_required) window.location.href = "/setup";
+    }).catch(() => undefined);
+  }, []);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();

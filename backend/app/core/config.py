@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,9 +16,12 @@ class Settings(BaseSettings):
     enable_openapi: bool = True
     log_level: str = "INFO"
     database_url: str = Field(default="postgresql+psycopg://cyclope:cyclope@postgres:5432/cyclope")
+    redis_url: str = "redis://redis:6379/0"
+    cors_allowed_origins: str = "http://localhost:3000"
     jwt_issuer: str = "cyclope-central"
     jwt_audience: str = "cyclope-central-dashboard"
     jwt_secret_key: str = "change-me-in-production"
+    jwt_secret: str = ""
     token_hash_pepper: str = "change-me-token-pepper"
     device_offline_after_seconds: int = 300
 
@@ -38,6 +41,29 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from_email: str = "cyclope-central@example.local"
     smtp_use_tls: bool = False
+
+    @model_validator(mode="after")
+    def validate_production_settings(self) -> "Settings":
+        if self.jwt_secret:
+            self.jwt_secret_key = self.jwt_secret
+        if self.environment.lower() == "production":
+            missing = []
+            for name, value in {
+                "DATABASE_URL": self.database_url,
+                "REDIS_URL": self.redis_url,
+                "JWT_SECRET_KEY": self.jwt_secret_key,
+                "CORS_ALLOWED_ORIGINS": self.cors_allowed_origins,
+            }.items():
+                if not value:
+                    missing.append(name)
+            if missing:
+                raise ValueError(f"Missing required production settings: {', '.join(missing)}")
+            if self.jwt_secret_key == "change-me-in-production" or len(self.jwt_secret_key) < 32:
+                raise ValueError("Production JWT secret must be changed and at least 32 characters")
+        return self
+
+    def cors_origins(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
 
 
 @lru_cache

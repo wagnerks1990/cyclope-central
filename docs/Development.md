@@ -48,6 +48,20 @@ go run ./cmd/cyclope-agent
 Use `cyclope-agent.example.json` as the starting point for local configuration. The current agent only emits check-in stub logs.
 
 
+
+## Empty Database Setup
+
+From a fresh clone, copy environment placeholders, start dependencies, apply migrations, then complete first-run setup:
+
+```bash
+cp .env.example .env
+./scripts/dev-up.sh
+./scripts/run-migrations.sh
+./scripts/create-owner-user.py --organization "Default MSP" --email owner@example.test
+```
+
+Alternatively, open `/setup` in the frontend after migrations to create the first organization and owner interactively.
+
 ## Local Bootstrap User
 
 For local development, create an organization and first owner in a backend shell or migration seed, then use `/login` in the dashboard:

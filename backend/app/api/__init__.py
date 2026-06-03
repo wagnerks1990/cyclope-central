@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.api.agent import router as agent_router
 from app.api.alerts import router as alerts_router
 from app.api.auth import router as auth_router
+from app.api.bootstrap import router as bootstrap_router
 from app.api.dashboard import router as dashboard_router
 from app.api.devices import router as devices_router
 from app.api.jobs import router as jobs_router
@@ -39,6 +40,7 @@ def session_stub(
 
 
 router.include_router(auth_router)
+router.include_router(bootstrap_router)
 router.include_router(alerts_router)
 router.include_router(dashboard_router)
 router.include_router(agent_router)

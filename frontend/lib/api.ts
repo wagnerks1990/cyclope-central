@@ -328,3 +328,29 @@ export async function logout(): Promise<void> {
   }
   clearAuthTokens();
 }
+
+export type BootstrapStatus = {
+  has_organization: boolean;
+  has_owner: boolean;
+  setup_required: boolean;
+};
+
+export async function bootstrapSetup(body: {
+  organization_name: string;
+  owner_name: string;
+  owner_email: string;
+  owner_password: string;
+}): Promise<AuthSession> {
+  const response = await fetch(`${API_BASE_URL}/bootstrap/setup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Setup failed" }));
+    throw new Error(error.detail ?? "Setup failed");
+  }
+  const session = await response.json() as AuthSession;
+  setAuthTokens(session.access_token, session.refresh_token);
+  return session;
+}
