@@ -32,7 +32,19 @@ param(
 
     [Parameter(Mandatory = $false)]
     [ValidateRange(15, 86400)]
-    [int]$JobIntervalSeconds = 60
+    [int]$JobIntervalSeconds = 60,
+
+    [Parameter(Mandatory = $false)]
+    [string]$RustDeskServerHost = "",
+
+    [Parameter(Mandatory = $false)]
+    [string]$RustDeskRelayHost = "",
+
+    [Parameter(Mandatory = $false)]
+    [string]$RustDeskPublicKey = "",
+
+    [Parameter(Mandatory = $false)]
+    [string]$RustDeskInstallerPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -85,6 +97,31 @@ $config = [ordered]@{
     job_interval_seconds = $JobIntervalSeconds
 }
 $config | ConvertTo-Json -Depth 4 | Set-Content -NoNewline -Encoding UTF8 -Path $ConfigPath
+
+
+if ($RustDeskInstallerPath -ne "") {
+    if (-not (Test-Path $RustDeskInstallerPath)) {
+        throw "RustDesk installer path was provided but does not exist."
+    }
+    Write-Host "Installing RustDesk from local installer path..."
+    $rustDeskProcess = Start-Process -FilePath $RustDeskInstallerPath -ArgumentList "/S" -Wait -PassThru
+    if ($rustDeskProcess.ExitCode -ne 0) {
+        Write-Warning "RustDesk installer returned exit code $($rustDeskProcess.ExitCode). If silent install is unsupported, install RustDesk manually and rerun with RustDesk configuration arguments."
+    }
+}
+
+if ($RustDeskServerHost -ne "") {
+    try {
+        $env:CYCLOPE_RUSTDESK_PUBLIC_KEY = $RustDeskPublicKey
+        & $InstallExe --config $ConfigPath rustdesk configure --server-host $RustDeskServerHost --relay-host $RustDeskRelayHost
+        if ($LASTEXITCODE -ne 0) {
+            throw "RustDesk configuration failed with exit code $LASTEXITCODE"
+        }
+    }
+    finally {
+        Remove-Item Env:\CYCLOPE_RUSTDESK_PUBLIC_KEY -ErrorAction SilentlyContinue
+    }
+}
 
 try {
     $env:CYCLOPE_ENROLLMENT_TOKEN = $EnrollmentToken

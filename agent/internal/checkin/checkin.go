@@ -42,20 +42,21 @@ type EnrollmentResponse struct {
 }
 
 type Payload struct {
-	DeviceID         string    `json:"device_id"`
-	DeviceSecret     string    `json:"device_secret"`
-	Hostname         string    `json:"hostname"`
-	OperatingSystem  string    `json:"operating_system"`
-	Architecture     string    `json:"architecture"`
-	AgentVersion     string    `json:"agent_version"`
-	IPAddress        string    `json:"ip_address,omitempty"`
-	LocalIPs         []string  `json:"local_ips"`
-	UptimeSeconds    *int64    `json:"uptime_seconds,omitempty"`
-	CPUCount         int       `json:"cpu_count"`
-	MemoryTotalBytes *uint64   `json:"memory_total_bytes,omitempty"`
-	MemoryUsedBytes  *uint64   `json:"memory_used_bytes,omitempty"`
-	HealthStatus     string    `json:"health_status"`
-	Inventory        Inventory `json:"inventory"`
+	DeviceID         string             `json:"device_id"`
+	DeviceSecret     string             `json:"device_secret"`
+	Hostname         string             `json:"hostname"`
+	OperatingSystem  string             `json:"operating_system"`
+	Architecture     string             `json:"architecture"`
+	AgentVersion     string             `json:"agent_version"`
+	IPAddress        string             `json:"ip_address,omitempty"`
+	LocalIPs         []string           `json:"local_ips"`
+	UptimeSeconds    *int64             `json:"uptime_seconds,omitempty"`
+	CPUCount         int                `json:"cpu_count"`
+	MemoryTotalBytes *uint64            `json:"memory_total_bytes,omitempty"`
+	MemoryUsedBytes  *uint64            `json:"memory_used_bytes,omitempty"`
+	HealthStatus     string             `json:"health_status"`
+	Inventory        Inventory          `json:"inventory"`
+	RemoteAccess     RemoteAccessStatus `json:"remote_access"`
 }
 
 type CheckinResponse struct {
@@ -194,6 +195,7 @@ func BuildPayload(cfg config.Config) (Payload, error) {
 		MemoryUsedBytes:  MemoryUsedBytes(),
 		HealthStatus:     "healthy",
 		Inventory:        BuildInventory(),
+		RemoteAccess:     DetectRustDesk(),
 	}, nil
 }
 

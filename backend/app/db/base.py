@@ -19,6 +19,9 @@ from app.models.notification_delivery import NotificationDelivery
 from app.models.notification_rule import NotificationRule
 from app.models.organization import Organization
 from app.models.refresh_token import RefreshToken
+from app.models.remote_device_link import RemoteDeviceLink
+from app.models.remote_provider_config import RemoteProviderConfig
+from app.models.remote_session_audit import RemoteSessionAudit
 from app.models.security_status import SecurityStatus
 from app.models.update_status import UpdateStatus
 from app.models.user import User
@@ -48,4 +51,7 @@ __all__ = [
     "UpdateStatus",
     "EnrollmentToken",
     "RefreshToken",
+    "RemoteProviderConfig",
+    "RemoteDeviceLink",
+    "RemoteSessionAudit",
 ]

@@ -21,6 +21,9 @@ from app.models.device_inventory import DeviceInventory
 from app.models.enrollment_token import EnrollmentToken
 from app.models.installed_software import InstalledSoftware
 from app.models.organization import Organization
+from app.models.remote_device_link import RemoteDeviceLink
+from app.models.remote_provider_config import RemoteProviderConfig
+from app.models.remote_session_audit import RemoteSessionAudit
 from app.models.user import User
 
 
@@ -1000,3 +1003,149 @@ def test_production_insecure_token_pepper_rejected_without_leaking_secret(
     message = str(exc_info.value)
     assert "TOKEN_HASH_PEPPER" in message
     assert secret_value not in message
+
+
+
+def _enroll_for_remote_test(client: TestClient, db: Session, org: Organization) -> dict:
+    client.headers.update(auth_headers(db, org))
+    create_enrollment_token(db, org)
+    return client.post("/api/agent/enroll", json=enroll_payload()).json()
+
+
+def test_remote_provider_config_creation_is_tenant_scoped(
+    client: TestClient, db: Session
+) -> None:
+    org = create_org(db)
+    headers = auth_headers(db, org, role="admin", email="remote-admin@example.test")
+
+    response = client.post(
+        "/api/remote/providers",
+        json={
+            "name": "RustDesk OSS",
+            "provider_type": "rustdesk_oss",
+            "host": "rustdesk.example.test",
+            "relay_host": "rustdesk-relay.example.test",
+            "public_key": "PUBLIC_KEY_VALUE",
+            "enabled": True,
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["organization_id"] == str(org.id)
+    assert body["provider_type"] == "rustdesk_oss"
+    assert body["host"] == "rustdesk.example.test"
+    assert db.scalar(select(RemoteProviderConfig)) is not None
+
+
+def test_rustdesk_status_checkin_creates_remote_device_link(
+    client: TestClient, db: Session
+) -> None:
+    org = create_org(db)
+    enroll = _enroll_for_remote_test(client, db, org)
+
+    response = client.post(
+        "/api/agent/checkin",
+        json={
+            "device_id": enroll["device_id"],
+            "device_secret": enroll["device_secret"],
+            "hostname": "WIN-01",
+            "operating_system": "Windows 11 Pro",
+            "architecture": "amd64",
+            "agent_version": "0.2.0",
+            "local_ips": [],
+            "cpu_count": 4,
+            "health_status": "healthy",
+            "remote_access": {
+                "provider_type": "rustdesk_oss",
+                "installed": True,
+                "device_id": "123456789",
+                "status": "ready",
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    link = db.scalar(select(RemoteDeviceLink))
+    assert link is not None
+    assert link.rustdesk_id == "123456789"
+    assert link.installed is True
+    assert link.last_status == "ready"
+
+
+def test_viewer_cannot_launch_remote_session(client: TestClient, db: Session) -> None:
+    org = create_org(db)
+    enroll = _enroll_for_remote_test(client, db, org)
+    device = db.get(Device, UUID(enroll["device_id"]))
+    assert device is not None
+    db.add(
+        RemoteDeviceLink(
+            organization_id=org.id,
+            device_id=device.id,
+            provider_type="rustdesk_oss",
+            rustdesk_id="123456789",
+            installed=True,
+            last_status="ready",
+            last_reported_at=datetime.now(UTC),
+        )
+    )
+    db.commit()
+    viewer_headers = auth_headers(db, org, role="viewer", email="remote-viewer@example.test")
+
+    response = client.post(f"/api/devices/{device.id}/remote/launch", headers=viewer_headers)
+
+    assert response.status_code == 403
+    assert db.scalar(select(RemoteSessionAudit)) is None
+
+
+def test_technician_launches_rustdesk_session_and_creates_audit(
+    client: TestClient, db: Session
+) -> None:
+    org = create_org(db)
+    admin_headers = auth_headers(db, org, role="admin", email="remote-provider-admin@example.test")
+    provider_response = client.post(
+        "/api/remote/providers",
+        json={
+            "name": "RustDesk OSS",
+            "provider_type": "rustdesk_oss",
+            "host": "rustdesk.example.test",
+            "relay_host": "rustdesk-relay.example.test",
+            "public_key": "PUBLIC_KEY_VALUE",
+            "enabled": True,
+        },
+        headers=admin_headers,
+    )
+    assert provider_response.status_code == 201
+    enroll = _enroll_for_remote_test(client, db, org)
+    device = db.get(Device, UUID(enroll["device_id"]))
+    assert device is not None
+    provider = db.get(RemoteProviderConfig, UUID(provider_response.json()["id"]))
+    assert provider is not None
+    db.add(
+        RemoteDeviceLink(
+            organization_id=org.id,
+            device_id=device.id,
+            provider_config_id=provider.id,
+            provider_type="rustdesk_oss",
+            rustdesk_id="123456789",
+            installed=True,
+            last_status="ready",
+            last_reported_at=datetime.now(UTC),
+        )
+    )
+    db.commit()
+    technician_headers = auth_headers(
+        db, org, role="technician", email="remote-tech@example.test"
+    )
+
+    response = client.post(f"/api/devices/{device.id}/remote/launch", headers=technician_headers)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["launch_url"] == "rustdesk://123456789"
+    assert body["rustdesk_id"] == "123456789"
+    audit = db.scalar(select(RemoteSessionAudit))
+    assert audit is not None
+    assert audit.action == "remote.launch"
+    assert db.scalar(select(AuditLog).where(AuditLog.action == "remote.launch")) is not None

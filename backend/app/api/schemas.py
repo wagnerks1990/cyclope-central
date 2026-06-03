@@ -75,6 +75,13 @@ class DeviceInventoryPayload(BaseModel):
     updates: UpdateStatusPayload | None = None
 
 
+class RemoteAccessPayload(BaseModel):
+    provider_type: str = Field(default="rustdesk_oss", pattern="^rustdesk_oss$")
+    installed: bool = False
+    device_id: str | None = Field(default=None, max_length=128)
+    status: str = Field(default="unknown", max_length=64)
+
+
 class AgentCheckinRequest(BaseModel):
     device_id: UUID
     device_secret: str = Field(min_length=16)
@@ -90,6 +97,7 @@ class AgentCheckinRequest(BaseModel):
     memory_used_bytes: int | None = Field(default=None, ge=0)
     health_status: str = Field(default="healthy", max_length=64)
     inventory: DeviceInventoryPayload | None = None
+    remote_access: RemoteAccessPayload | None = None
 
 
 class AgentCheckinResponse(BaseModel):
@@ -392,3 +400,59 @@ class BootstrapSetupRequest(BaseModel):
     owner_name: str = Field(min_length=1, max_length=255)
     owner_email: str
     owner_password: str = Field(min_length=12)
+
+
+class RemoteProviderCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    provider_type: str = Field(default="rustdesk_oss", pattern="^rustdesk_oss$")
+    host: str = Field(min_length=1, max_length=255)
+    relay_host: str | None = Field(default=None, max_length=255)
+    public_key: str | None = Field(default=None, max_length=1024)
+    enabled: bool = True
+
+
+class RemoteProviderResponse(BaseModel):
+    id: UUID
+    organization_id: UUID
+    provider_type: str
+    name: str
+    host: str
+    relay_host: str | None = None
+    public_key: str | None = None
+    enabled: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class RemoteDeviceLinkResponse(BaseModel):
+    id: UUID | None = None
+    organization_id: UUID
+    device_id: UUID
+    provider_config_id: UUID | None = None
+    provider_type: str = "rustdesk_oss"
+    rustdesk_id: str | None = None
+    installed: bool = False
+    last_status: str = "unknown"
+    last_reported_at: datetime | None = None
+    provider: RemoteProviderResponse | None = None
+
+
+class RemoteLaunchResponse(BaseModel):
+    launch_url: str
+    rustdesk_id: str
+    provider_type: str = "rustdesk_oss"
+    audit_id: UUID
+    manual_instructions: str
+
+
+class RemoteSessionAuditResponse(BaseModel):
+    id: UUID
+    organization_id: UUID
+    device_id: UUID
+    provider_config_id: UUID | None = None
+    actor_user_id: UUID | None = None
+    provider_type: str
+    action: str
+    launch_url: str | None = None
+    metadata_json: dict
+    created_at: datetime

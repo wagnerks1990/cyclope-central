@@ -55,15 +55,20 @@ The installer:
 5. Enrolls the agent, saving only the returned device credentials in the local config.
 6. Installs `CyclopeCentralAgent` with automatic startup and starts it.
 
-Optional interval flags:
+Optional interval and RustDesk configuration flags:
 
 ```powershell
 .\scripts\windows\install-agent.ps1 `
   -ServerUrl "https://cyclope.example.com" `
   -EnrollmentToken "paste-one-time-enrollment-token" `
   -CheckinIntervalSeconds 300 `
-  -JobIntervalSeconds 60
+  -JobIntervalSeconds 60 `
+  -RustDeskServerHost "rustdesk.example.com" `
+  -RustDeskRelayHost "rustdesk.example.com" `
+  -RustDeskPublicKey "paste-public-key"
 ```
+
+RustDesk is not downloaded by this installer. To install RustDesk during the same local workflow, provide `-RustDeskInstallerPath` with a trusted local installer path; otherwise the script only configures an existing RustDesk installation.
 
 ## Manual install steps
 
@@ -128,4 +133,4 @@ By default, the uninstall script removes the service and binary while preserving
 - Do not store enrollment tokens in config files, ticket systems, screenshots, or logs.
 - The backend stores only hashed enrollment tokens and hashed device secrets.
 - The agent `config show` command masks stored credentials.
-- The service only performs authenticated telemetry, read-only inventory, and approved built-in jobs; no server response is executed as a command or script.
+- The service only performs authenticated telemetry, read-only inventory, approved built-in jobs, and RustDesk status reporting; no server response is executed as a command or script.

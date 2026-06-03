@@ -98,6 +98,10 @@ cd agent && go test ./...
 ```
 
 
+## RustDesk OSS Remote Access
+
+Cyclope Central can deploy RustDesk OSS server components via Docker Compose and use RustDesk as the first external remote desktop provider. Remote launches are RBAC-protected and audited, while RustDesk remains responsible for the remote desktop transport. See `docs/RemoteAccessRustDesk.md` for ports, NAT/firewall requirements, and agent/RustDesk setup.
+
 ## Windows Agent Packaging
 
 Build the Windows amd64 agent with `./scripts/build-agent-windows.sh`, then follow `docs/AgentInstall.md` for manual installation, the PowerShell installer workflow, service lifecycle commands, safe enrollment, and uninstall steps.

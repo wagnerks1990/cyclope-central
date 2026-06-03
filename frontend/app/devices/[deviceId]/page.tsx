@@ -10,6 +10,9 @@ import {
   type Alert,
   type DeviceDetail,
   type DeviceInventory,
+  type RemoteDeviceLink,
+  type RemoteLaunch,
+  type RemoteSessionAudit,
   type SecurityStatus,
   type SoftwareInventory,
   type UpdateStatus,
@@ -18,7 +21,7 @@ import {
   postJsonBody
 } from "@/lib/api";
 
-const tabs = ["Overview", "Hardware", "Network", "Software", "Security", "Updates", "Alerts", "Jobs", "Check-ins"] as const;
+const tabs = ["Overview", "Hardware", "Network", "Software", "Security", "Updates", "Remote Access", "Alerts", "Jobs", "Check-ins"] as const;
 type Tab = (typeof tabs)[number];
 
 type InventoryState = {
@@ -29,6 +32,8 @@ type InventoryState = {
   updates: UpdateStatus | null;
   alerts: Alert[];
   jobs: AgentJob[];
+  remote: RemoteDeviceLink | null;
+  remoteAudit: RemoteSessionAudit[];
 };
 
 function formatDate(value?: string | null) {
@@ -54,7 +59,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 export default function DeviceDetailPage({ params }: { params: Promise<{ deviceId: string }> }) {
   const { deviceId } = use(params);
   const [activeTab, setActiveTab] = useState<Tab>("Overview");
-  const [state, setState] = useState<InventoryState>({ detail: null, inventory: null, software: null, security: null, updates: null, alerts: [], jobs: [] });
+  const [state, setState] = useState<InventoryState>({ detail: null, inventory: null, software: null, security: null, updates: null, alerts: [], jobs: [], remote: null, remoteAudit: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,16 +69,18 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ deviceI
       setLoading(true);
       setError(null);
       try {
-        const [detail, inventory, software, security, updates, alerts, jobs] = await Promise.all([
+        const [detail, inventory, software, security, updates, alerts, jobs, remote, remoteAudit] = await Promise.all([
           fetchJson<DeviceDetail>(`/devices/${deviceId}`),
           fetchJson<DeviceInventory>(`/devices/${deviceId}/inventory`).catch(() => null),
           fetchJson<SoftwareInventory>(`/devices/${deviceId}/software`).catch(() => null),
           fetchJson<SecurityStatus>(`/devices/${deviceId}/security`).catch(() => null),
           fetchJson<UpdateStatus>(`/devices/${deviceId}/updates`).catch(() => null),
           fetchJson<Alert[]>(`/devices/${deviceId}/alerts`).catch(() => []),
-          fetchJson<AgentJob[]>(`/devices/${deviceId}/jobs`).catch(() => [])
+          fetchJson<AgentJob[]>(`/devices/${deviceId}/jobs`).catch(() => []),
+          fetchJson<RemoteDeviceLink>(`/devices/${deviceId}/remote`).catch(() => null),
+          fetchJson<RemoteSessionAudit[]>(`/devices/${deviceId}/remote/audit`).catch(() => [])
         ]);
-        if (mounted) setState({ detail, inventory, software, security, updates, alerts, jobs });
+        if (mounted) setState({ detail, inventory, software, security, updates, alerts, jobs, remote, remoteAudit });
       } catch (err) {
         if (mounted) setError(err instanceof Error ? err.message : "Unknown error");
       } finally {
@@ -84,7 +91,7 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ deviceI
     return () => { mounted = false; };
   }, [deviceId]);
 
-  const { detail, inventory, software, security, updates, alerts, jobs } = state;
+  const { detail, inventory, software, security, updates, alerts, jobs, remote, remoteAudit } = state;
 
   async function createJob(job_type: string) {
     const payload = job_type === "get_service_status" ? { service_name: window.prompt("Service name", "Spooler") ?? "" } : {};
@@ -97,6 +104,13 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ deviceI
     await postJson<AgentJob>(`/jobs/${jobId}/cancel`);
     const refreshed = await fetchJson<AgentJob[]>(`/devices/${deviceId}/jobs`);
     setState((current) => ({ ...current, jobs: refreshed }));
+  }
+
+  async function launchRemote() {
+    const launch = await postJson<RemoteLaunch>(`/devices/${deviceId}/remote/launch`);
+    window.location.href = launch.launch_url;
+    const refreshedAudit = await fetchJson<RemoteSessionAudit[]>(`/devices/${deviceId}/remote/audit`).catch(() => []);
+    setState((current) => ({ ...current, remoteAudit: refreshedAudit }));
   }
 
   return (
@@ -121,6 +135,8 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ deviceI
           {activeTab === "Security" && <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Stat label="Antivirus" value={security?.antivirus_product ?? "Unknown"} /><Stat label="AV enabled" value={boolLabel(security?.antivirus_enabled)} /><Stat label="Defender" value={boolLabel(security?.defender_enabled)} /><Stat label="Firewall" value={boolLabel(security?.firewall_enabled)} /></div>}
           {activeTab === "Updates" && <div className="grid gap-4 md:grid-cols-3"><Stat label="Pending reboot" value={updates?.pending_reboot === true ? "Yes" : updates?.pending_reboot === false ? "No" : "Unknown"} /><Stat label="Update status" value={updates?.update_status ?? "Unknown"} /><Stat label="Last checked" value={formatDate(updates?.last_update_check_at)} /></div>}
 
+
+          {activeTab === "Remote Access" && <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-4"><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Stat label="Provider" value="RustDesk OSS" /><Stat label="Installed" value={remote?.installed ? "Yes" : "No"} /><Stat label="RustDesk ID" value={remote?.rustdesk_id ?? "Not reported"} /><Stat label="Last status" value={remote?.last_status ?? "unknown"} /></div><div className="rounded-xl bg-slate-950 p-4 text-sm text-slate-300"><p>Server: {remote?.provider?.host ?? "Not configured"}</p><p>Relay: {remote?.provider?.relay_host ?? "Not configured"}</p><p>Last reported: {formatDate(remote?.last_reported_at)}</p></div>{remote?.rustdesk_id ? <div className="space-y-3"><Button type="button" onClick={launchRemote}>Launch RustDesk</Button><p className="text-sm text-slate-400">If your browser blocks the protocol handler, open RustDesk locally and connect to ID <span className="font-mono text-slate-200">{remote.rustdesk_id}</span>.</p></div> : <p className="rounded-xl border border-slate-800 bg-slate-950 p-4 text-slate-300">No RustDesk ID has been reported. Install/configure RustDesk on the endpoint and wait for the next check-in.</p>}{remoteAudit.length > 0 && <div className="space-y-2"><h3 className="font-medium">Launch audit</h3>{remoteAudit.map((event) => <p key={event.id} className="rounded-lg bg-slate-950 p-3 text-sm text-slate-400">{event.action} · {formatDate(event.created_at)}</p>)}</div>}</div>}
           {activeTab === "Alerts" && <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4">{alerts.length === 0 ? <p className="text-slate-400">No alerts have been generated for this device.</p> : <div className="space-y-3">{alerts.map((alert) => <div key={alert.id} className="rounded-xl bg-slate-950 p-4"><div className="flex flex-wrap items-center gap-2"><span className="font-medium">{alert.title}</span><span className="rounded-full bg-slate-800 px-2 py-1 text-xs uppercase text-slate-300">{alert.severity}</span><span className="rounded-full bg-slate-800 px-2 py-1 text-xs uppercase text-slate-300">{alert.status}</span></div><p className="mt-2 text-sm text-slate-400">{alert.message}</p><p className="mt-1 text-xs text-slate-500">Last seen {formatDate(alert.last_seen_at)}</p></div>)}</div>}</div>}
 
           {activeTab === "Jobs" && <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4"><div className="mb-4 flex flex-wrap gap-2">{["ping", "refresh_inventory", "collect_agent_logs", "get_service_status"].map((type) => <Button key={type} variant="secondary" type="button" onClick={() => createJob(type)}>{type}</Button>)}</div>{jobs.length === 0 ? <p className="text-slate-400">No jobs have been created for this device.</p> : <div className="space-y-3">{jobs.map((job) => <div key={job.id} className="rounded-xl bg-slate-950 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium">{job.job_type}</p><p className="text-sm text-slate-400">{job.status} · created {formatDate(job.created_at)}</p><p className="text-xs text-slate-500">Started {formatDate(job.started_at)} · completed {formatDate(job.completed_at)}</p></div>{!["succeeded", "failed", "canceled", "expired"].includes(job.status) && <Button variant="secondary" type="button" onClick={() => cancelJob(job.id)}>Cancel</Button>}</div>{job.result_summary && <p className="mt-2 text-sm text-slate-300">{job.result_summary}</p>}{job.events.length > 0 && <div className="mt-3 space-y-1 text-xs text-slate-500">{job.events.map((event) => <p key={event.id}>{event.event_type}: {event.message}</p>)}</div>}</div>)}</div>}</div>}

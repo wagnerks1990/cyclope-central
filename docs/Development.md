@@ -202,3 +202,7 @@ Build the Windows amd64 agent from a Linux/macOS development host with:
 ```
 
 The script writes the binary and SHA-256 checksum to `dist/agent/windows/amd64/`. See `docs/AgentInstall.md` for installation and service lifecycle commands.
+
+## RustDesk local testing
+
+Set `RUSTDESK_SERVER_HOST`, `RUSTDESK_RELAY_HOST`, and `RUSTDESK_PUBLIC_KEY` in `.env`, then run `docker compose up --build` to start `rustdesk-hbbs` and `rustdesk-hbbr` with the rest of the stack. For endpoint testing, install RustDesk locally or provide a local installer path to `scripts/windows/install-agent.ps1`; the Cyclope agent reports RustDesk status on the next check-in. See `docs/RemoteAccessRustDesk.md` for firewall and NAT details.

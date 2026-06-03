@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.inventory import upsert_inventory
+from app.api.remote import upsert_rustdesk_status
 from app.api.jobs import job_response
 from app.api.schemas import (
     AgentCheckinRequest,
@@ -183,6 +184,7 @@ def checkin_agent(
         "memory_total_bytes": payload.memory_total_bytes,
         "architecture": payload.architecture,
         "inventory_refreshed": payload.inventory is not None,
+        "remote_access_reported": payload.remote_access is not None,
     }
 
     checkin = DeviceCheckin(
@@ -197,6 +199,8 @@ def checkin_agent(
     db.add(checkin)
     if payload.inventory is not None:
         upsert_inventory(db, device=device, payload=payload.inventory, now=now)
+    if payload.remote_access is not None:
+        upsert_rustdesk_status(db, device=device, payload=payload.remote_access, now=now)
     db.flush()
     evaluate_device_alerts(db, device=device, checkin_payload=checkin_payload, now=now)
     _audit(

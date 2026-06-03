@@ -23,7 +23,7 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 ROLES = {"viewer", "technician", "admin", "owner"}
 ROLE_PERMISSIONS = {
-    "viewer": {"dashboard:read", "devices:read", "alerts:read", "jobs:read"},
+    "viewer": {"dashboard:read", "devices:read", "alerts:read", "jobs:read", "remote:read"},
     "technician": {
         "dashboard:read",
         "devices:read",
@@ -32,6 +32,8 @@ ROLE_PERMISSIONS = {
         "jobs:read",
         "jobs:create",
         "jobs:cancel",
+        "remote:read",
+        "remote:launch",
     },
     "admin": {
         "dashboard:read",
@@ -43,6 +45,9 @@ ROLE_PERMISSIONS = {
         "jobs:cancel",
         "notifications:manage",
         "enrollment_tokens:manage",
+        "remote:read",
+        "remote:launch",
+        "remote:manage",
     },
     "owner": {
         "dashboard:read",
@@ -56,6 +61,9 @@ ROLE_PERMISSIONS = {
         "enrollment_tokens:manage",
         "users:manage",
         "organization:manage",
+        "remote:read",
+        "remote:launch",
+        "remote:manage",
     },
 }
 ACCESS_TOKEN_MINUTES = 15

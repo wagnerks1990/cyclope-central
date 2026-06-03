@@ -85,3 +85,7 @@ The `refresh_inventory` job reuses the existing read-only inventory/check-in pat
 - Signed agent enrollment and key rotation
 - Inventory and posture telemetry ingestion
 - Production infrastructure modules
+
+## RustDesk OSS Remote Access
+
+RustDesk OSS is integrated as an external remote desktop provider. Cyclope Central stores tenant-scoped provider configuration, device RustDesk IDs reported by authenticated check-ins, and launch audit events. The dashboard opens `rustdesk://` links after the backend authorizes and audits the launch. Cyclope Central does not implement screen capture, keyboard injection, custom remote desktop transport, arbitrary command execution, or server-driven PowerShell.

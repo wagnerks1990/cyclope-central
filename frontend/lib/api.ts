@@ -354,3 +354,50 @@ export async function bootstrapSetup(body: {
   setAuthTokens(session.access_token, session.refresh_token);
   return session;
 }
+
+export type RemoteProvider = {
+  id: string;
+  organization_id: string;
+  provider_type: "rustdesk_oss";
+  name: string;
+  host: string;
+  relay_host?: string | null;
+  public_key?: string | null;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type RemoteDeviceLink = {
+  id?: string | null;
+  organization_id: string;
+  device_id: string;
+  provider_config_id?: string | null;
+  provider_type: "rustdesk_oss";
+  rustdesk_id?: string | null;
+  installed: boolean;
+  last_status: string;
+  last_reported_at?: string | null;
+  provider?: RemoteProvider | null;
+};
+
+export type RemoteLaunch = {
+  launch_url: string;
+  rustdesk_id: string;
+  provider_type: "rustdesk_oss";
+  audit_id: string;
+  manual_instructions: string;
+};
+
+export type RemoteSessionAudit = {
+  id: string;
+  organization_id: string;
+  device_id: string;
+  provider_config_id?: string | null;
+  actor_user_id?: string | null;
+  provider_type: "rustdesk_oss";
+  action: string;
+  launch_url?: string | null;
+  metadata_json: Record<string, unknown>;
+  created_at: string;
+};

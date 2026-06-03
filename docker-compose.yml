@@ -52,6 +52,30 @@ services:
       timeout: 5s
       retries: 5
 
+  rustdesk-hbbs:
+    image: rustdesk/rustdesk-server:latest
+    command: hbbs -r ${RUSTDESK_RELAY_HOST:-rustdesk-hbbr}:21117
+    environment:
+      RUSTDESK_SERVER_HOST: ${RUSTDESK_SERVER_HOST:-localhost}
+      RUSTDESK_PUBLIC_KEY: ${RUSTDESK_PUBLIC_KEY:-}
+      RUSTDESK_RELAY_HOST: ${RUSTDESK_RELAY_HOST:-rustdesk-hbbr}
+    ports:
+      - "21115:21115/tcp"
+      - "21116:21116/tcp"
+      - "21116:21116/udp"
+      - "21118:21118/tcp"
+    volumes:
+      - rustdesk-data:/data
+
+  rustdesk-hbbr:
+    image: rustdesk/rustdesk-server:latest
+    command: hbbr
+    ports:
+      - "21117:21117/tcp"
+      - "21119:21119/tcp"
+    volumes:
+      - rustdesk-data:/data
+
   frontend:
     build:
       context: ./frontend
@@ -67,3 +91,4 @@ services:
 volumes:
   postgres-data:
   redis-data:
+  rustdesk-data:

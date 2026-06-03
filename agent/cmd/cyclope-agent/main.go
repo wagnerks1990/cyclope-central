@@ -96,6 +96,8 @@ func main() {
 		handleServiceCommand(args, configPath, cfg, logger)
 	case "config":
 		handleConfigCommand(args, cfg)
+	case "rustdesk":
+		handleRustDeskCommand(args, logger)
 	default:
 		printUsage()
 		os.Exit(2)
@@ -204,6 +206,41 @@ func handleServiceCommand(args []string, configPath string, cfg config.Config, l
 	}
 }
 
+func handleRustDeskCommand(args []string, logger *slog.Logger) {
+	if len(args) < 3 || args[1] != "configure" {
+		printUsage()
+		os.Exit(2)
+	}
+	serverHost, relayHost, publicKey := "", "", ""
+	for i := 2; i < len(args); i++ {
+		switch args[i] {
+		case "--server-host":
+			if i+1 < len(args) {
+				serverHost = args[i+1]
+				i++
+			}
+		case "--relay-host":
+			if i+1 < len(args) {
+				relayHost = args[i+1]
+				i++
+			}
+		case "--public-key":
+			if i+1 < len(args) {
+				publicKey = args[i+1]
+				i++
+			}
+		}
+	}
+	if publicKey == "" {
+		publicKey = os.Getenv("CYCLOPE_RUSTDESK_PUBLIC_KEY")
+	}
+	if err := checkin.ConfigureRustDesk(serverHost, relayHost, publicKey); err != nil {
+		logger.Error("RustDesk local configuration failed", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	fmt.Println("RustDesk local settings written")
+}
+
 func handleConfigCommand(args []string, cfg config.Config) {
 	if len(args) != 2 || args[1] != "show" {
 		printUsage()
@@ -239,5 +276,6 @@ Commands:
   service stop                    Stop the Windows service.
   service uninstall               Remove the Windows service.
   config show                     Print configuration with stored secrets redacted.
+  rustdesk configure              Write local RustDesk server settings from installer-provided arguments.
 `, os.Args[0])
 }
