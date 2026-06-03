@@ -96,3 +96,8 @@ cd backend && python -m compileall app
 cd frontend && npm install && npm run build
 cd agent && go test ./...
 ```
+
+
+## Windows Agent Packaging
+
+Build the Windows amd64 agent with `./scripts/build-agent-windows.sh`, then follow `docs/AgentInstall.md` for manual installation, the PowerShell installer workflow, service lifecycle commands, safe enrollment, and uninstall steps.

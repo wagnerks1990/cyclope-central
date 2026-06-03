@@ -192,3 +192,13 @@ Job handlers must stay built-in and read-only. Do not add arbitrary commands, sc
 - Change all default secrets before deploying outside local development.
 - Keep tenant identifiers on every data access path.
 - Do not add remote access, shell, command, or PowerShell execution features without a dedicated security design review.
+
+## Windows Agent Packaging Checks
+
+Build the Windows amd64 agent from a Linux/macOS development host with:
+
+```bash
+./scripts/build-agent-windows.sh
+```
+
+The script writes the binary and SHA-256 checksum to `dist/agent/windows/amd64/`. See `docs/AgentInstall.md` for installation and service lifecycle commands.

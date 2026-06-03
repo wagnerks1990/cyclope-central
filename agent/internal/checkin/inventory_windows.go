@@ -147,3 +147,7 @@ func windowsDisks() []Disk {
 	}
 	return disks
 }
+
+func Disks() []Disk {
+	return windowsDisks()
+}

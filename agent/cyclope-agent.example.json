@@ -4,7 +4,10 @@
   "device_id": "",
   "device_secret": "",
   "api_base_url": "https://cyclope.example.com/api",
-  "agent_token": "replace-with-enrollment-token-before-enroll",
+  "agent_token": "",
   "log_level": "INFO",
-  "service_name": "CyclopeCentralAgent"
+  "log_path": "C:\\ProgramData\\CyclopeCentral\\Agent\\cyclope-agent.log",
+  "service_name": "CyclopeCentralAgent",
+  "checkin_interval_seconds": 300,
+  "job_interval_seconds": 60
 }

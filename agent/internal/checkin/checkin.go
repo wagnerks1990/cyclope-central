@@ -69,8 +69,21 @@ func NewClient(cfg config.Config, logger *slog.Logger) *Client {
 }
 
 func (c *Client) Run(ctx context.Context, interval time.Duration) error {
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+	return c.RunWithIntervals(ctx, interval, interval)
+}
+
+func (c *Client) RunWithIntervals(ctx context.Context, checkinInterval time.Duration, jobInterval time.Duration) error {
+	if checkinInterval <= 0 {
+		checkinInterval = 5 * time.Minute
+	}
+	if jobInterval <= 0 {
+		jobInterval = time.Minute
+	}
+
+	checkinTicker := time.NewTicker(checkinInterval)
+	defer checkinTicker.Stop()
+	jobTicker := time.NewTicker(jobInterval)
+	defer jobTicker.Stop()
 
 	if err := c.Checkin(ctx); err != nil {
 		c.logger.Warn("agent check-in failed", slog.String("error", err.Error()))
@@ -82,10 +95,11 @@ func (c *Client) Run(ctx context.Context, interval time.Duration) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.C:
+		case <-checkinTicker.C:
 			if err := c.Checkin(ctx); err != nil {
 				c.logger.Warn("agent check-in failed", slog.String("error", err.Error()))
 			}
+		case <-jobTicker.C:
 			if err := c.ProcessJobs(ctx); err != nil {
 				c.logger.Warn("agent job processing failed", slog.String("error", err.Error()))
 			}
