@@ -958,3 +958,45 @@ def test_production_insecure_secret_rejected(monkeypatch: pytest.MonkeyPatch) ->
 
     with pytest.raises(ValueError):
         Settings()
+
+
+def test_production_secure_settings_are_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.core.config import Settings
+
+    monkeypatch.setenv("CYCLOPE_ENVIRONMENT", "production")
+    monkeypatch.setenv(
+        "CYCLOPE_DATABASE_URL",
+        "postgresql+psycopg://cyclope:strong-db-password@db.internal:5432/cyclope",
+    )
+    monkeypatch.setenv("CYCLOPE_REDIS_URL", "redis://cache.internal:6379/0")
+    monkeypatch.setenv("CYCLOPE_CORS_ALLOWED_ORIGINS", "https://central.acme.test")
+    monkeypatch.setenv("CYCLOPE_JWT_SECRET", "A" * 40)
+    monkeypatch.setenv("CYCLOPE_TOKEN_HASH_PEPPER", "B" * 40)
+
+    settings = Settings()
+
+    assert settings.jwt_secret_key == "A" * 40
+
+
+def test_production_insecure_token_pepper_rejected_without_leaking_secret(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.core.config import Settings
+
+    secret_value = "super-secret-value-that-must-not-appear"
+    monkeypatch.setenv("CYCLOPE_ENVIRONMENT", "production")
+    monkeypatch.setenv(
+        "CYCLOPE_DATABASE_URL",
+        "postgresql+psycopg://cyclope:strong-db-password@db.internal:5432/cyclope",
+    )
+    monkeypatch.setenv("CYCLOPE_REDIS_URL", "redis://cache.internal:6379/0")
+    monkeypatch.setenv("CYCLOPE_CORS_ALLOWED_ORIGINS", "https://central.acme.test")
+    monkeypatch.setenv("CYCLOPE_JWT_SECRET", secret_value)
+    monkeypatch.setenv("CYCLOPE_TOKEN_HASH_PEPPER", "change-me-token-pepper")
+
+    with pytest.raises(ValueError) as exc_info:
+        Settings()
+
+    message = str(exc_info.value)
+    assert "TOKEN_HASH_PEPPER" in message
+    assert secret_value not in message

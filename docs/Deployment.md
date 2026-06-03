@@ -10,10 +10,11 @@ Set these values before starting the backend in production:
 - `CYCLOPE_DATABASE_URL` pointing at PostgreSQL
 - `CYCLOPE_REDIS_URL` pointing at Redis
 - `CYCLOPE_JWT_SECRET` with at least 32 random characters
+- `CYCLOPE_TOKEN_HASH_PEPPER` with at least 32 random characters
 - `CYCLOPE_CORS_ALLOWED_ORIGINS` with the dashboard origin
 - `NEXT_PUBLIC_API_BASE_URL` for the frontend
 
-Do not use values from `.env.example` in production. They are placeholders only.
+Do not use values from `.env.example` or `.env.production.example` without replacing placeholders. Production startup rejects placeholder/default JWT and token-pepper values without printing secret contents.
 
 ## Database migrations
 

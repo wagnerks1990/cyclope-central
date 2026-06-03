@@ -29,7 +29,7 @@ scripts/         Developer helper scripts
 
 ## Fresh Install
 
-1. Copy `.env.example` to `.env` and replace placeholder secrets.
+1. Copy `.env.example` (or `.env.development.example` locally / `.env.production.example` for deployment) to `.env` and replace placeholder secrets.
 2. Start services with `./scripts/dev-up.sh` or Docker Compose.
 3. Run database migrations with `./scripts/run-migrations.sh` or `cd backend && alembic upgrade head`.
 4. Open the frontend and complete first-run setup at `/setup`, or create a headless owner with `./scripts/create-owner-user.py --organization "Default MSP" --email owner@example.test`.

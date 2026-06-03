@@ -38,6 +38,7 @@ services:
       CYCLOPE_CORS_ALLOWED_ORIGINS: ${CYCLOPE_CORS_ALLOWED_ORIGINS:-http://localhost:3000}
       CYCLOPE_LOG_LEVEL: ${CYCLOPE_LOG_LEVEL:-INFO}
       CYCLOPE_JWT_SECRET: ${CYCLOPE_JWT_SECRET:-replace-with-at-least-32-random-characters}
+      CYCLOPE_TOKEN_HASH_PEPPER: ${CYCLOPE_TOKEN_HASH_PEPPER:-replace-with-random-token-pepper}
     ports:
       - "8000:8000"
     depends_on:

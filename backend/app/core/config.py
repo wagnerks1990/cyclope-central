@@ -47,23 +47,51 @@ class Settings(BaseSettings):
         if self.jwt_secret:
             self.jwt_secret_key = self.jwt_secret
         if self.environment.lower() == "production":
-            missing = []
-            for name, value in {
+            values = {
                 "DATABASE_URL": self.database_url,
                 "REDIS_URL": self.redis_url,
-                "JWT_SECRET_KEY": self.jwt_secret_key,
+                "JWT_SECRET": self.jwt_secret_key,
+                "TOKEN_HASH_PEPPER": self.token_hash_pepper,
                 "CORS_ALLOWED_ORIGINS": self.cors_allowed_origins,
-            }.items():
-                if not value:
-                    missing.append(name)
+            }
+            missing = [name for name, value in values.items() if not value]
             if missing:
                 raise ValueError(f"Missing required production settings: {', '.join(missing)}")
-            if self.jwt_secret_key == "change-me-in-production" or len(self.jwt_secret_key) < 32:
-                raise ValueError("Production JWT secret must be changed and at least 32 characters")
+            insecure = [
+                name
+                for name, value in values.items()
+                if _is_placeholder_secret(value) or value in _development_defaults(name)
+            ]
+            if insecure:
+                raise ValueError(
+                    "Production settings contain insecure placeholder/default values: "
+                    + ", ".join(insecure)
+                )
+            if len(self.jwt_secret_key) < 32:
+                raise ValueError("Production JWT secret must be at least 32 characters")
+            if len(self.token_hash_pepper) < 32:
+                raise ValueError("Production token hash pepper must be at least 32 characters")
         return self
 
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
+
+
+def _is_placeholder_secret(value: str) -> bool:
+    lowered = value.lower()
+    return any(
+        marker in lowered
+        for marker in ("change-me", "replace-with", "replace_with", "example", "placeholder")
+    )
+
+
+def _development_defaults(name: str) -> set[str]:
+    return {
+        "DATABASE_URL": {"postgresql+psycopg://cyclope:cyclope@postgres:5432/cyclope"},
+        "JWT_SECRET": {"change-me-in-production"},
+        "TOKEN_HASH_PEPPER": {"change-me-token-pepper"},
+        "CORS_ALLOWED_ORIGINS": {"http://localhost:3000"},
+    }.get(name, set())
 
 
 @lru_cache
