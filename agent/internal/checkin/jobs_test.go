@@ -50,3 +50,17 @@ func TestExecuteUnknownJobFails(t *testing.T) {
 		t.Fatalf("unexpected error: %#v", result.Error)
 	}
 }
+
+func TestExecuteDiscoveryJobIsDiscoveryOnly(t *testing.T) {
+	cfg := config.Config{DeviceID: "device-1", DeviceSecret: "secret-1234567890123456"}
+	job := Job{ID: "job-5", Type: "network_discovery", Payload: map[string]any{"subnet": "local"}}
+
+	result := ExecuteJob(cfg, job)
+
+	if !result.Succeeded {
+		t.Fatalf("expected discovery job to succeed: %v", result.Error)
+	}
+	if !strings.Contains(result.Output, "discovery_only_no_exploitation_no_credentials") {
+		t.Fatalf("expected discovery-only boundary in output: %s", result.Output)
+	}
+}

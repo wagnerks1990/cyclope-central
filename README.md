@@ -98,6 +98,10 @@ cd agent && go test ./...
 ```
 
 
+## MSP Operations Platform Phase 2
+
+Cyclope Central now includes tenant-scoped MSP operations modules for assets, documentation, network discovery, tickets, reports, and a local AI-assistant provider abstraction. These modules preserve strict RBAC and audit logging, avoid password vaults or credential storage, and keep discovery/read-only automation separate from arbitrary command execution or remote shell behavior.
+
 ## RustDesk OSS Remote Access
 
 Cyclope Central can deploy RustDesk OSS server components via Docker Compose and use RustDesk as the first external remote desktop provider. Remote launches are RBAC-protected and audited, while RustDesk remains responsible for the remote desktop transport. See `docs/RemoteAccessRustDesk.md` for ports, NAT/firewall requirements, and agent/RustDesk setup.

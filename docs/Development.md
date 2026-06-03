@@ -206,3 +206,7 @@ The script writes the binary and SHA-256 checksum to `dist/agent/windows/amd64/`
 ## RustDesk local testing
 
 Set `RUSTDESK_SERVER_HOST`, `RUSTDESK_RELAY_HOST`, and `RUSTDESK_PUBLIC_KEY` in `.env`, then run `docker compose up --build` to start `rustdesk-hbbs` and `rustdesk-hbbr` with the rest of the stack. For endpoint testing, install RustDesk locally or provide a local installer path to `scripts/windows/install-agent.ps1`; the Cyclope agent reports RustDesk status on the next check-in. See `docs/RemoteAccessRustDesk.md` for firewall and NAT details.
+
+## MSP Operations Phase 2 local checks
+
+Phase 2 APIs are available under `/api/assets`, `/api/documentation/*`, `/api/discovery/*`, `/api/tickets`, `/api/ai/query`, and `/api/reports/*`. Use owner/admin/technician test users to validate write permissions and viewer users to validate read-only behavior. Discovery agent jobs are limited to `network_discovery`, `arp_scan`, `dns_discovery`, and `snmp_discovery` payload validation and safe local discovery summaries.

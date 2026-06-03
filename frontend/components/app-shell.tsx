@@ -10,6 +10,12 @@ import { type CurrentUser, clearAuthTokens, fetchJson, logout } from "@/lib/api"
 const navItems = [
   { href: "/", label: "Dashboard" },
   { href: "/devices", label: "Devices" },
+  { href: "/assets", label: "Assets" },
+  { href: "/discovery", label: "Discovery" },
+  { href: "/tickets", label: "Tickets" },
+  { href: "/documentation", label: "Documentation" },
+  { href: "/reports", label: "Reports" },
+  { href: "/ai", label: "AI Assistant" },
   { href: "/alerts", label: "Alerts" },
   { href: "/settings", label: "Settings" }
 ];

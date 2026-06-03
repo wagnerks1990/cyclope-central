@@ -1149,3 +1149,114 @@ def test_technician_launches_rustdesk_session_and_creates_audit(
     assert audit is not None
     assert audit.action == "remote.launch"
     assert db.scalar(select(AuditLog).where(AuditLog.action == "remote.launch")) is not None
+
+
+def test_phase2_asset_create_autopopulates_and_tenant_isolated(
+    client: TestClient, db: Session
+) -> None:
+    org_a = create_org(db)
+    org_b = Organization(name="Other MSP", slug="other-msp")
+    db.add(org_b)
+    db.commit()
+    headers_a = auth_headers(db, org_a, role="technician", email="asset-tech@example.test")
+    headers_b = auth_headers(db, org_b, role="viewer", email="asset-viewer-other@example.test")
+    create_enrollment_token(db, org_a)
+    enroll = client.post("/api/agent/enroll", json=enroll_payload()).json()
+    device_id = enroll["device_id"]
+    client.post(
+        "/api/agent/checkin",
+        json={
+            "device_id": device_id,
+            "device_secret": enroll["device_secret"],
+            "hostname": "WIN-ASSET",
+            "operating_system": "Windows 11 Pro",
+            "architecture": "amd64",
+            "agent_version": "0.2.0",
+            "cpu_count": 4,
+            "health_status": "healthy",
+            "inventory": {
+                "system_manufacturer": "Contoso Hardware",
+                "system_model": "Model X",
+                "disks": [],
+                "network_interfaces": [],
+                "installed_software": [],
+            },
+        },
+    )
+
+    created = client.post(
+        "/api/assets",
+        json={"asset_tag": "ACME-001", "name": "Exec Laptop", "device_id": device_id},
+        headers=headers_a,
+    )
+    other_list = client.get("/api/assets", headers=headers_b)
+
+    assert created.status_code == 201
+    body = created.json()
+    assert body["manufacturer"] == "Contoso Hardware"
+    assert body["model"] == "Model X"
+    assert other_list.status_code == 200
+    assert other_list.json() == []
+
+
+def test_phase2_viewer_cannot_create_ticket_but_technician_can(
+    client: TestClient, db: Session
+) -> None:
+    org = create_org(db)
+    viewer_headers = auth_headers(db, org, role="viewer", email="ticket-viewer@example.test")
+    tech_headers = auth_headers(db, org, role="technician", email="ticket-tech@example.test")
+
+    denied = client.post(
+        "/api/tickets",
+        json={"title": "Printer issue", "priority": "Low"},
+        headers=viewer_headers,
+    )
+    created = client.post(
+        "/api/tickets",
+        json={"title": "Printer issue", "priority": "Low"},
+        headers=tech_headers,
+    )
+
+    assert denied.status_code == 403
+    assert created.status_code == 201
+    assert created.json()["status"] == "New"
+    assert db.scalar(select(AuditLog).where(AuditLog.action == "ticket.created")) is not None
+
+
+def test_phase2_ai_query_respects_tenant_scope(client: TestClient, db: Session) -> None:
+    org = create_org(db)
+    headers = auth_headers(db, org, role="viewer", email="ai-viewer@example.test")
+    db.add(
+        Device(
+            organization_id=org.id,
+            hostname="offline-device",
+            operating_system="Windows",
+            machine_identifier="offline-1",
+            status="offline",
+            is_online=False,
+            health_status="unknown",
+        )
+    )
+    db.commit()
+
+    response = client.post("/api/ai/query", json={"query": "Show devices offline over 7 days"}, headers=headers)
+
+    assert response.status_code == 200
+    assert "1 devices" in response.json()["answer"]
+    assert response.json()["provider"] == "local_stub"
+
+
+def test_phase2_discovery_job_type_allowed(client: TestClient, db: Session) -> None:
+    org = create_org(db)
+    headers = auth_headers(db, org, role="technician", email="discovery-tech@example.test")
+    create_enrollment_token(db, org)
+    enroll = client.post("/api/agent/enroll", json=enroll_payload()).json()
+
+    response = client.post(
+        f"/api/devices/{enroll['device_id']}/jobs",
+        json={"job_type": "network_discovery", "payload": {"subnet": "local"}},
+        headers=headers,
+    )
+
+    assert response.status_code == 201
+    assert response.json()["job_type"] == "network_discovery"

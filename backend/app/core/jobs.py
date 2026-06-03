@@ -14,7 +14,7 @@ from app.models.agent_job_result import AgentJobResult
 from app.models.audit_log import AuditLog
 from app.models.device import Device
 
-ALLOWED_JOB_TYPES = {"ping", "refresh_inventory", "collect_agent_logs", "get_service_status"}
+ALLOWED_JOB_TYPES = {"ping", "refresh_inventory", "collect_agent_logs", "get_service_status", "network_discovery", "arp_scan", "dns_discovery", "snmp_discovery"}
 TERMINAL_JOB_STATUSES = {"succeeded", "failed", "canceled", "expired"}
 
 
@@ -32,6 +32,11 @@ def validate_job_payload(job_type: str, payload: dict | None) -> dict:
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Payload not allowed"
             )
         return {}
+    if job_type in {"network_discovery", "arp_scan", "dns_discovery", "snmp_discovery"}:
+        subnet = str(payload.get("subnet", "local"))
+        if not fullmatch(r"[A-Za-z0-9_./:-]{1,128}", subnet):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid subnet")
+        return {"subnet": subnet}
     if job_type == "collect_agent_logs":
         try:
             line_count = int(payload.get("line_count", 100))

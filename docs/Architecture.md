@@ -89,3 +89,7 @@ The `refresh_inventory` job reuses the existing read-only inventory/check-in pat
 ## RustDesk OSS Remote Access
 
 RustDesk OSS is integrated as an external remote desktop provider. Cyclope Central stores tenant-scoped provider configuration, device RustDesk IDs reported by authenticated check-ins, and launch audit events. The dashboard opens `rustdesk://` links after the backend authorizes and audits the launch. Cyclope Central does not implement screen capture, keyboard injection, custom remote desktop transport, arbitrary command execution, or server-driven PowerShell.
+
+## MSP Operations Phase 2
+
+Phase 2 adds tenant-scoped operations modules for asset management, documentation, discovery, ticketing, local AI query abstraction, and reporting. These modules reuse the existing RBAC and audit-log patterns: viewers receive read-only access, technicians can work tickets/assets/discovery, admins manage operations, and owners retain tenant administration. The AI assistant is a local provider abstraction only and does not call external LLM APIs. Documentation explicitly excludes password vaults, credential storage, and secret management. Discovery jobs are discovery-only and do not perform exploitation, vulnerability scanning, credential harvesting, arbitrary command execution, or PowerShell execution.

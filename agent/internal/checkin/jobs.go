@@ -127,6 +127,9 @@ func ExecuteJob(cfg config.Config, job Job) JobCompleteRequest {
 			return failedJobResult(cfg, job, err)
 		}
 		result.Output = status
+	case "network_discovery", "arp_scan", "dns_discovery", "snmp_discovery":
+		result.Output = safeDiscoverySummary(job.Type, job.Payload)
+		result.Metadata["discovery_only"] = true
 	default:
 		return failedJobResult(cfg, job, fmt.Errorf("unsupported job type %q", job.Type))
 	}
@@ -144,6 +147,21 @@ func failedJobResult(cfg config.Config, job Job, err error) JobCompleteRequest {
 		ExitCode:     &exitCode,
 		Metadata:     map[string]any{"handler": job.Type},
 	}
+}
+
+func safeDiscoverySummary(jobType string, payload map[string]any) string {
+	subnet, _ := payload["subnet"].(string)
+	if subnet == "" {
+		subnet = "local"
+	}
+	interfaces := NetworkInterfaces()
+	encoded, _ := json.Marshal(map[string]any{
+		"job_type":          jobType,
+		"subnet":            subnet,
+		"local_interfaces":  interfaces,
+		"security_boundary": "discovery_only_no_exploitation_no_credentials",
+	})
+	return string(encoded)
 }
 
 func collectAgentLogs(payload map[string]any) string {
