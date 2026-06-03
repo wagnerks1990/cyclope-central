@@ -1,6 +1,6 @@
 # Portainer Self-Contained Staging Deployment
 
-This guide deploys Cyclope Central to an Ubuntu VPS through a Portainer stack without requiring a separate `.env` file. It uses the existing Phase 3 production-ready services, RustDesk OSS services, and Caddy for automatic HTTPS.
+This guide deploys Cyclope Central to an Ubuntu VPS through a Portainer stack without requiring a separate `.env` file. It uses the existing Phase 3 production-ready services and RustDesk OSS services. TLS and Let's Encrypt certificates are handled externally by Nginx Proxy Manager, not by Cyclope Central.
 
 - Domain: `carlislestudentscte.cloud`
 - Primary URL: `https://central.carlislestudentscte.cloud`
@@ -25,8 +25,10 @@ Open these inbound ports on the VPS and any cloud firewall/security group:
 
 | Port | Protocol | Purpose |
 | --- | --- | --- |
-| `80` | TCP | Caddy HTTP-01 challenge and redirect support |
-| `443` | TCP | Caddy HTTPS for dashboard and API |
+| `80` | TCP | Nginx Proxy Manager HTTP and Let's Encrypt challenge support |
+| `443` | TCP | Nginx Proxy Manager HTTPS for dashboard and API |
+| `3000` | TCP | Frontend container host port for Nginx Proxy Manager upstream |
+| `8000` | TCP | Backend API container host port for Nginx Proxy Manager `/api` custom location |
 | `21115` | TCP | RustDesk hbbs NAT/type test |
 | `21116` | TCP | RustDesk hbbs rendezvous |
 | `21116` | UDP | RustDesk hbbs hole punching |
@@ -34,7 +36,7 @@ Open these inbound ports on the VPS and any cloud firewall/security group:
 | `21118` | TCP | RustDesk web client/support channel |
 | `21119` | TCP | RustDesk web client/support channel |
 
-Do not route RustDesk TCP/UDP through Caddy; Caddy only proxies HTTP(S) dashboard/API traffic.
+Do not route RustDesk TCP/UDP through Nginx Proxy Manager. Nginx Proxy Manager should only proxy HTTP(S) dashboard/API traffic.
 
 ## Portainer stack deployment
 
@@ -54,6 +56,29 @@ The root `docker-compose.yml` is intentionally a staging/Portainer self-containe
 6. Watch the backend logs until migrations complete and Uvicorn starts.
 7. Visit `https://central.carlislestudentscte.cloud` and complete first-run setup.
 
+## Nginx Proxy Manager
+
+Cyclope Central staging exposes the frontend on host port `3000` and the backend API on host port `8000`. Configure TLS and Let's Encrypt in Nginx Proxy Manager; Cyclope Central does not run Caddy, terminate TLS, or request certificates directly.
+
+Create a Proxy Host:
+
+- Domain Names: `central.carlislestudentscte.cloud`
+- Scheme: `http`
+- Forward Hostname/IP: the Docker host address or Portainer node reachable by Nginx Proxy Manager
+- Forward Port: `3000`
+- Websockets Support: enabled
+- SSL: request/attach the certificate in Nginx Proxy Manager and force HTTPS as appropriate
+
+Add a custom location for the API:
+
+- Location: `/api`
+- Scheme: `http`
+- Forward Hostname/IP: the same Docker host address or Portainer node
+- Forward Port: `8000`
+- Websockets Support: enabled
+
+Do not configure Nginx Proxy Manager TCP streams for RustDesk in this stack. RustDesk ports remain directly published by Docker and should be opened on the VPS/cloud firewall.
+
 ## Included services
 
 The self-contained stack includes:
@@ -64,7 +89,6 @@ The self-contained stack includes:
 - `redis`
 - `rustdesk-hbbs`
 - `rustdesk-hbbr`
-- `caddy`
 
 Named volumes are used for durable staging data:
 
@@ -72,8 +96,6 @@ Named volumes are used for durable staging data:
 - `redis-data`
 - `rustdesk-data`
 - `backend-secrets`
-- `caddy-data`
-- `caddy-config`
 
 Back up these named volumes before destructive Portainer operations.
 
@@ -138,7 +160,6 @@ In Portainer, confirm these containers are healthy or running:
 - `redis`
 - `backend`
 - `frontend`
-- `caddy`
 - `rustdesk-hbbs`
 - `rustdesk-hbbr`
 
@@ -169,6 +190,5 @@ At minimum, back up these named volumes:
 - `redis-data` for Redis persistence
 - `rustdesk-data` for RustDesk server data/keys
 - `backend-secrets` for generated staging secrets
-- `caddy-data` and `caddy-config` for ACME account/certificate state
 
 Automated restore is intentionally not implemented. Practice manual database and volume restore procedures on a separate staging VPS before relying on backups.

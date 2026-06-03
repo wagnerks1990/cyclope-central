@@ -118,4 +118,4 @@ Production deployment assets now include `docker-compose.production.yml` and an 
 
 ## Portainer Staging Deployment
 
-A self-contained Portainer staging stack for `https://central.carlislestudentscte.cloud` is available at `deployment/portainer/docker-compose.staging.selfcontained.yml`. It includes backend, frontend, Postgres, Redis, RustDesk, Caddy auto-TLS, named volumes, and first-start secret generation without requiring a separate `.env` file. See `docs/PortainerSelfContainedDeploy.md` for DNS, firewall, Portainer, health-check, RustDesk, enrollment, backup, and secret-rotation steps.
+A self-contained Portainer staging stack for `https://central.carlislestudentscte.cloud` is available at `deployment/portainer/docker-compose.staging.selfcontained.yml`. It includes backend, frontend, Postgres, Redis, RustDesk, direct frontend/backend port publishing for external Nginx Proxy Manager, named volumes, and first-start secret generation without requiring a separate `.env` file. See `docs/PortainerSelfContainedDeploy.md` for DNS, firewall, Portainer, Nginx Proxy Manager, health-check, RustDesk, enrollment, backup, and secret-rotation steps.
