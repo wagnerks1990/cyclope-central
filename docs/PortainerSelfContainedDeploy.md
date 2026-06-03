@@ -28,7 +28,7 @@ Open these inbound ports on the VPS and any cloud firewall/security group:
 | `80` | TCP | Nginx Proxy Manager HTTP and Let's Encrypt challenge support |
 | `443` | TCP | Nginx Proxy Manager HTTPS for dashboard and API |
 | `3000` | TCP | Frontend container host port for Nginx Proxy Manager upstream |
-| `8000` | TCP | Backend API container host port for Nginx Proxy Manager `/api` custom location |
+| `8088` | TCP | Backend API host port for Nginx Proxy Manager `/api` custom location; container port remains `8000` |
 | `21115` | TCP | RustDesk hbbs NAT/type test |
 | `21116` | TCP | RustDesk hbbs rendezvous |
 | `21116` | UDP | RustDesk hbbs hole punching |
@@ -58,7 +58,7 @@ The root `docker-compose.yml` is intentionally a staging/Portainer self-containe
 
 ## Nginx Proxy Manager
 
-Cyclope Central staging exposes the frontend on host port `3000` and the backend API on host port `8000`. Configure TLS and Let's Encrypt in Nginx Proxy Manager; Cyclope Central does not run Caddy, terminate TLS, or request certificates directly.
+Cyclope Central staging exposes the frontend on host port `3000` and the backend API on host port `8088`. Configure TLS and Let's Encrypt in Nginx Proxy Manager; Cyclope Central does not run Caddy, terminate TLS, or request certificates directly.
 
 Create a Proxy Host:
 
@@ -74,7 +74,7 @@ Add a custom location for the API:
 - Location: `/api`
 - Scheme: `http`
 - Forward Hostname/IP: the same Docker host address or Portainer node
-- Forward Port: `8000`
+- Forward Port: `8088`
 - Websockets Support: enabled
 
 Do not configure Nginx Proxy Manager TCP streams for RustDesk in this stack. RustDesk ports remain directly published by Docker and should be opened on the VPS/cloud firewall.
