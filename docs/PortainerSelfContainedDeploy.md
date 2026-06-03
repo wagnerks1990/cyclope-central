@@ -4,7 +4,8 @@ This guide deploys Cyclope Central to an Ubuntu VPS through a Portainer stack wi
 
 - Domain: `carlislestudentscte.cloud`
 - Primary URL: `https://central.carlislestudentscte.cloud`
-- Compose file: `deployment/portainer/docker-compose.staging.selfcontained.yml`
+- Default Portainer Git Compose path: `docker-compose.yml`
+- Alternate copy for manual/web-editor workflows: `deployment/portainer/docker-compose.staging.selfcontained.yml`
 
 This staging workflow does not add product features, arbitrary scripting, PowerShell execution from the server, remote shell, credential vaulting, or custom remote desktop.
 
@@ -37,14 +38,21 @@ Do not route RustDesk TCP/UDP through Caddy; Caddy only proxies HTTP(S) dashboar
 
 ## Portainer stack deployment
 
+For Portainer Git deployment, use:
+
+- Repository URL: `git@github.com:wagnerks1990/cyclope-central.git`
+- Repository reference: `refs/heads/main`
+- Compose path: `docker-compose.yml`
+
+The root `docker-compose.yml` is intentionally a staging/Portainer self-contained stack with root-relative build contexts. The existing `deployment/portainer/docker-compose.staging.selfcontained.yml` remains available for manual web-editor paste workflows or environments that prefer keeping deployment files under `deployment/`.
+
 1. In Portainer, open **Stacks** and select **Add stack**.
 2. Name the stack `cyclope-central-staging`.
-3. Choose **Web editor**.
-4. Paste the full contents of `deployment/portainer/docker-compose.staging.selfcontained.yml`.
-5. Review the `backend` and `frontend` `build` contexts. If Portainer cannot resolve relative build contexts in your environment, deploy the stack from this Git repository or replace the build sections with image names from your private registry.
-6. Deploy the stack.
-7. Watch the backend logs until migrations complete and Uvicorn starts.
-8. Visit `https://central.carlislestudentscte.cloud` and complete first-run setup.
+3. Choose **Git repository** for the default path above, or choose **Web editor** and paste the full contents of `deployment/portainer/docker-compose.staging.selfcontained.yml`.
+4. Review the `backend` and `frontend` build contexts. If Portainer cannot build from your Git repository in your environment, replace the build sections with image names from your private registry.
+5. Deploy the stack.
+6. Watch the backend logs until migrations complete and Uvicorn starts.
+7. Visit `https://central.carlislestudentscte.cloud` and complete first-run setup.
 
 ## Included services
 
