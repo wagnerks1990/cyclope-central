@@ -1,0 +1,69 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cyclope}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-db-password}
+      POSTGRES_DB: ${POSTGRES_DB:-cyclope}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cyclope} -d ${POSTGRES_DB:-cyclope}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../docker/backend.Dockerfile
+    environment:
+      CYCLOPE_DATABASE_URL: ${CYCLOPE_DATABASE_URL:-postgresql+psycopg://cyclope:change-me-db-password@postgres:5432/cyclope}
+      CYCLOPE_REDIS_URL: ${CYCLOPE_REDIS_URL:-redis://redis:6379/0}
+      CYCLOPE_CORS_ALLOWED_ORIGINS: ${CYCLOPE_CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      CYCLOPE_LOG_LEVEL: ${CYCLOPE_LOG_LEVEL:-INFO}
+      CYCLOPE_JWT_SECRET: ${CYCLOPE_JWT_SECRET:-replace-with-at-least-32-random-characters}
+      CYCLOPE_TOKEN_HASH_PEPPER: ${CYCLOPE_TOKEN_HASH_PEPPER:-replace-with-random-token-pepper}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../docker/frontend.Dockerfile
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000/api}
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  redis-data:
