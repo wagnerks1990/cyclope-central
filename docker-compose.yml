@@ -1,0 +1,151 @@
+# Cyclope Central root Compose file for Portainer Git staging deployments.
+# Intended staging URL: https://central.carlislestudentscte.cloud
+#
+# This file mirrors deployment/portainer/docker-compose.staging.selfcontained.yml
+# with root-relative build contexts so Portainer can use Compose path:
+# docker-compose.yml
+#
+# It is staging-oriented and self-contained; production operators can continue
+# using docker-compose.production.yml and docs/Deployment.md.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: cyclope
+      POSTGRES_PASSWORD: cyclope
+      POSTGRES_DB: cyclope
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cyclope -d cyclope"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../docker/backend.Dockerfile
+    environment:
+      CYCLOPE_ENVIRONMENT: staging
+      CYCLOPE_DATABASE_URL: postgresql+psycopg://cyclope:cyclope@postgres:5432/cyclope
+      CYCLOPE_REDIS_URL: redis://redis:6379/0
+      CYCLOPE_CORS_ALLOWED_ORIGINS: https://central.carlislestudentscte.cloud,http://localhost:3000
+      CYCLOPE_JWT_SECRET_KEY: ""
+      CYCLOPE_TOKEN_HASH_PEPPER: ""
+      CYCLOPE_SMTP_HOST: localhost
+      CYCLOPE_SMTP_PORT: "1025"
+      CYCLOPE_SMTP_FROM_EMAIL: cyclope-central@carlislestudentscte.cloud
+      CYCLOPE_SMTP_USE_TLS: "false"
+      RUSTDESK_SERVER_HOST: central.carlislestudentscte.cloud
+      RUSTDESK_RELAY_HOST: central.carlislestudentscte.cloud
+      RUSTDESK_PUBLIC_KEY: ""
+    volumes:
+      - backend-secrets:/var/lib/cyclope/secrets
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        set -eu
+        SECRET_DIR=/var/lib/cyclope/secrets
+        mkdir -p "$SECRET_DIR"
+        chmod 700 "$SECRET_DIR"
+
+        load_or_create_secret() {
+          var_name="$1"
+          file_name="$2"
+          current_value=$(printenv "$var_name" || true)
+          if [ -n "$current_value" ]; then
+            export "$var_name=$current_value"
+            return 0
+          fi
+          if [ ! -s "$SECRET_DIR/$file_name" ]; then
+            umask 077
+            python -c 'import secrets; print(secrets.token_urlsafe(64))' > "$SECRET_DIR/$file_name"
+          fi
+          generated_value=$(cat "$SECRET_DIR/$file_name")
+          export "$var_name=$generated_value"
+        }
+
+        load_or_create_secret CYCLOPE_JWT_SECRET_KEY jwt_secret_key
+        load_or_create_secret CYCLOPE_TOKEN_HASH_PEPPER token_hash_pepper
+        echo "Cyclope staging secrets are loaded from environment or persisted volume. Values are not printed."
+
+        python -c 'exec("import os\nimport time\nimport psycopg\nurl = os.environ[\"CYCLOPE_DATABASE_URL\"].replace(\"postgresql+psycopg://\", \"postgresql://\")\nlast_error = None\nfor _ in range(60):\n    try:\n        conn = psycopg.connect(url, connect_timeout=3)\n        conn.close()\n        raise SystemExit(0)\n    except Exception as exc:\n        last_error = exc.__class__.__name__\n        time.sleep(2)\nraise SystemExit(f\"Postgres was not ready after startup wait; last error type: {last_error}\")")'
+        alembic upgrade head
+        exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../docker/frontend.Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: https://central.carlislestudentscte.cloud/api
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: https://central.carlislestudentscte.cloud/api
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  rustdesk-hbbs:
+    image: rustdesk/rustdesk-server:latest
+    command: hbbs -r central.carlislestudentscte.cloud:21117
+    ports:
+      - "21115:21115/tcp"
+      - "21116:21116/tcp"
+      - "21116:21116/udp"
+      - "21118:21118/tcp"
+    volumes:
+      - rustdesk-data:/data
+    restart: unless-stopped
+
+  rustdesk-hbbr:
+    image: rustdesk/rustdesk-server:latest
+    command: hbbr
+    ports:
+      - "21117:21117/tcp"
+      - "21119:21119/tcp"
+    volumes:
+      - rustdesk-data:/data
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:
+  rustdesk-data:
+  backend-secrets:
