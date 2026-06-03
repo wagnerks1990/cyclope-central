@@ -115,3 +115,7 @@ Build the Windows amd64 agent with `./scripts/build-agent-windows.sh`, then foll
 Phase 3 adds production-oriented MSP platform completion work: a unified operations dashboard, saved dashboard preferences, customer portal login/user records, automation workflow definitions, tenant-scoped API keys, internal platform health, backup run tracking, and expanded report run formats. These features are intentionally orchestration and data-management focused; they do not add arbitrary scripting, PowerShell execution, credential vaulting, remote shells, keylogging, or custom remote desktop.
 
 Production deployment assets now include `docker-compose.production.yml` and an Nginx reverse-proxy example under `infrastructure/reverse-proxy/`. Use these as templates, replace every placeholder secret in `.env.production.example`, run Alembic migrations before first startup, and keep backup restore as a documented manual operator procedure rather than an automated API action.
+
+## Portainer Staging Deployment
+
+A self-contained Portainer staging stack for `https://central.carlislestudentscte.cloud` is available at `deployment/portainer/docker-compose.staging.selfcontained.yml`. It includes backend, frontend, Postgres, Redis, RustDesk, Caddy auto-TLS, named volumes, and first-start secret generation without requiring a separate `.env` file. See `docs/PortainerSelfContainedDeploy.md` for DNS, firewall, Portainer, health-check, RustDesk, enrollment, backup, and secret-rotation steps.
