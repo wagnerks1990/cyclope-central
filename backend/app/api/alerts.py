@@ -5,11 +5,13 @@ from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from app.api.schemas import AlertEventResponse, AlertResponse
+from app.core.security import require_permission
 from app.db.session import get_db
 from app.models.alert import Alert
 from app.models.alert_event import AlertEvent
 from app.models.alert_rule import AlertRule
 from app.models.device import Device
+from app.models.user import User
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
@@ -57,9 +59,10 @@ def list_alerts(
     severity: str | None = Query(default=None),
     status_filter: str | None = Query(default=None, alias="status"),
     device_id: UUID | None = Query(default=None),
+    current: User = Depends(require_permission("alerts:read")),
     db: Session = Depends(get_db),
 ) -> list[AlertResponse]:
-    query = select(Alert)
+    query = select(Alert).where(Alert.organization_id == current.organization_id)
     if severity:
         query = query.where(Alert.severity == severity)
     if status_filter:
@@ -71,17 +74,25 @@ def list_alerts(
 
 
 @router.get("/{alert_id}", response_model=AlertResponse)
-def get_alert(alert_id: UUID, db: Session = Depends(get_db)) -> AlertResponse:
+def get_alert(
+    alert_id: UUID,
+    current: User = Depends(require_permission("alerts:read")),
+    db: Session = Depends(get_db),
+) -> AlertResponse:
     alert = db.get(Alert, alert_id)
-    if alert is None:
+    if alert is None or alert.organization_id != current.organization_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
     return _alert_response(db, alert, include_events=True)
 
 
 @router.post("/{alert_id}/acknowledge", response_model=AlertResponse)
-def acknowledge_alert(alert_id: UUID, db: Session = Depends(get_db)) -> AlertResponse:
+def acknowledge_alert(
+    alert_id: UUID,
+    current: User = Depends(require_permission("alerts:acknowledge")),
+    db: Session = Depends(get_db),
+) -> AlertResponse:
     alert = db.get(Alert, alert_id)
-    if alert is None:
+    if alert is None or alert.organization_id != current.organization_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
     if alert.status == "active":
         from datetime import UTC, datetime
@@ -103,9 +114,13 @@ def acknowledge_alert(alert_id: UUID, db: Session = Depends(get_db)) -> AlertRes
 
 
 @router.post("/{alert_id}/resolve", response_model=AlertResponse)
-def resolve_alert(alert_id: UUID, db: Session = Depends(get_db)) -> AlertResponse:
+def resolve_alert(
+    alert_id: UUID,
+    current: User = Depends(require_permission("alerts:acknowledge")),
+    db: Session = Depends(get_db),
+) -> AlertResponse:
     alert = db.get(Alert, alert_id)
-    if alert is None:
+    if alert is None or alert.organization_id != current.organization_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
     if alert.status != "resolved":
         from datetime import UTC, datetime

@@ -17,7 +17,7 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
-    role: Mapped[str] = mapped_column(String(64), nullable=False, default="operator")
+    role: Mapped[str] = mapped_column(String(64), nullable=False, default="viewer")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     organization = relationship("Organization", back_populates="users")

@@ -327,3 +327,55 @@ class NotificationDeliveryResponse(BaseModel):
     last_error: str | None = None
     created_at: datetime
     sent_at: datetime | None = None
+
+
+class OrganizationResponse(BaseModel):
+    id: UUID
+    name: str
+    slug: str
+
+
+class UserResponse(BaseModel):
+    id: UUID
+    organization_id: UUID
+    email: str
+    role: str
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str = Field(min_length=1)
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str = Field(min_length=16)
+
+
+class AuthResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    user: UserResponse
+    organization: OrganizationResponse
+    permissions: list[str]
+
+
+class CurrentUserResponse(BaseModel):
+    user: UserResponse
+    organization: OrganizationResponse
+    permissions: list[str]
+
+
+class UserCreateRequest(BaseModel):
+    email: str
+    password: str = Field(min_length=12)
+    role: str = "viewer"
+
+
+class UserPatchRequest(BaseModel):
+    email: str | None = None
+    password: str | None = Field(default=None, min_length=12)
+    role: str | None = None

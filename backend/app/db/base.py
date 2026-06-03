@@ -18,6 +18,7 @@ from app.models.notification_channel import NotificationChannel
 from app.models.notification_delivery import NotificationDelivery
 from app.models.notification_rule import NotificationRule
 from app.models.organization import Organization
+from app.models.refresh_token import RefreshToken
 from app.models.security_status import SecurityStatus
 from app.models.update_status import UpdateStatus
 from app.models.user import User
@@ -46,4 +47,5 @@ __all__ = [
     "SecurityStatus",
     "UpdateStatus",
     "EnrollmentToken",
+    "RefreshToken",
 ]

@@ -36,6 +36,11 @@ docker compose up --build
 - Backend API: <http://localhost:8000/api/health>
 - Backend docs: <http://localhost:8000/docs>
 
+
+## Authentication and RBAC
+
+Operator APIs and the dashboard now use password-based login with hashed passwords, short-lived access tokens, refresh token rotation/revocation, and role-based permissions. Users are scoped to one organization, and server-side checks enforce tenant boundaries for devices, inventory, alerts, jobs, notification settings, and user management. Roles are `viewer`, `technician`, `admin`, and `owner`; remote access, scripting, remote shell, and remote desktop remain out of scope.
+
 ## Endpoint Inventory
 
 Authenticated check-ins can include read-only inventory snapshots. Cyclope Central stores the latest hardware, disk, network, software, security, and update posture per device while preserving lightweight historical check-in records. Inventory collection deliberately excludes user documents, browser history, passwords, cookies, Wi-Fi passwords, credential material, keystrokes, screenshots, and user activity.

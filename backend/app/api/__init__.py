@@ -4,10 +4,12 @@ from sqlalchemy.orm import Session
 
 from app.api.agent import router as agent_router
 from app.api.alerts import router as alerts_router
+from app.api.auth import router as auth_router
 from app.api.dashboard import router as dashboard_router
 from app.api.devices import router as devices_router
 from app.api.jobs import router as jobs_router
 from app.api.notifications import router as notifications_router
+from app.api.users import router as users_router
 from app.core.config import settings
 from app.core.security import get_current_user_stub
 from app.db.session import get_db
@@ -36,9 +38,11 @@ def session_stub(
     return {"authenticated": True, "user": current_user}
 
 
+router.include_router(auth_router)
 router.include_router(alerts_router)
 router.include_router(dashboard_router)
 router.include_router(agent_router)
 router.include_router(devices_router)
 router.include_router(jobs_router)
 router.include_router(notifications_router)
+router.include_router(users_router)

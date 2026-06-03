@@ -35,6 +35,13 @@ Initial models include:
 - `DeviceCheckin`
 - `AuditLog`
 
+
+## Tenant and Permission Model
+
+Dashboard users authenticate with password credentials; only PBKDF2 password hashes are stored. Login returns a short-lived JWT access token plus a random refresh token whose hash is stored server-side for rotation and logout/revocation. Passwords, password hashes, access tokens, refresh tokens, and refresh token hashes are not returned by user APIs.
+
+Every operator-facing API resolves the authenticated user and scopes reads/writes to `user.organization_id`. The RBAC model is additive: `viewer` can read dashboard/devices/alerts, `technician` can also acknowledge alerts and create/cancel safe jobs, `admin` can also manage notification channels/rules, and `owner` can also manage users and organization settings. Agent enrollment/check-in remains credentialed separately by enrollment tokens and device secrets.
+
 ## Agent Enrollment Security Model
 
 Enrollment uses organization-scoped, limited-use tokens. Plaintext enrollment tokens are shown only at creation time and the database stores only HMAC-SHA256 token hashes. Tokens can expire, be revoked, and enforce maximum use counts.

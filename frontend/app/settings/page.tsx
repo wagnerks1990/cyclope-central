@@ -8,6 +8,8 @@ import {
   type NotificationChannel,
   type NotificationDelivery,
   type NotificationRule,
+  type CurrentUser,
+  type UserAccount,
   fetchJson,
   postJsonBody,
   patchJsonBody
@@ -19,23 +21,31 @@ export default function SettingsPage() {
   const [channels, setChannels] = useState<NotificationChannel[]>([]);
   const [rules, setRules] = useState<NotificationRule[]>([]);
   const [deliveries, setDeliveries] = useState<NotificationDelivery[]>([]);
+  const [session, setSession] = useState<CurrentUser | null>(null);
+  const [users, setUsers] = useState<UserAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [organizationId, setOrganizationId] = useState(defaultOrganizationId);
   const [channelType, setChannelType] = useState<"email" | "webhook">("email");
+  const canManageNotifications = Boolean(session?.permissions.includes("notifications:manage"));
+  const canManageUsers = Boolean(session?.permissions.includes("users:manage"));
 
   async function load() {
     setLoading(true);
     setError(null);
     try {
-      const [loadedChannels, loadedRules, loadedDeliveries] = await Promise.all([
-        fetchJson<NotificationChannel[]>("/notification-channels"),
-        fetchJson<NotificationRule[]>("/notification-rules"),
-        fetchJson<NotificationDelivery[]>("/notifications/deliveries")
+      const [loadedSession, loadedChannels, loadedRules, loadedDeliveries, loadedUsers] = await Promise.all([
+        fetchJson<CurrentUser>("/auth/me"),
+        fetchJson<NotificationChannel[]>("/notification-channels").catch(() => []),
+        fetchJson<NotificationRule[]>("/notification-rules").catch(() => []),
+        fetchJson<NotificationDelivery[]>("/notifications/deliveries").catch(() => []),
+        fetchJson<UserAccount[]>("/users").catch(() => [])
       ]);
+      setSession(loadedSession);
       setChannels(loadedChannels);
       setRules(loadedRules);
       setDeliveries(loadedDeliveries);
+      setUsers(loadedUsers);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -97,14 +107,22 @@ export default function SettingsPage() {
 
         <div className="grid gap-6 xl:grid-cols-2">
           <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
-            <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-semibold">Notification channels</h2><div className="flex gap-2"><select value={channelType} onChange={(event) => setChannelType(event.target.value as "email" | "webhook")} className="rounded-md bg-slate-950 px-3 py-2 text-sm"><option value="email">email</option><option value="webhook">webhook</option></select><Button onClick={createChannel}>Add channel</Button></div></div>
-            {channels.length === 0 ? <p className="mt-4 text-slate-400">No notification channels configured.</p> : <div className="mt-4 space-y-3">{channels.map((channel) => <div key={channel.id} className="rounded-xl bg-slate-950 p-4"><div className="flex items-center justify-between gap-3"><div><p className="font-medium">{channel.name}</p><p className="text-sm text-slate-400">{channel.channel_type} · {channel.enabled ? "enabled" : "disabled"}</p></div><Button variant="secondary" onClick={() => toggleChannel(channel)}>{channel.enabled ? "Disable" : "Enable"}</Button></div><pre className="mt-3 overflow-auto rounded-lg bg-slate-900 p-3 text-xs text-slate-400">{JSON.stringify(channel.config, null, 2)}</pre></div>)}</div>}
+            <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-semibold">Notification channels</h2><div className="flex gap-2"><select value={channelType} onChange={(event) => setChannelType(event.target.value as "email" | "webhook")} className="rounded-md bg-slate-950 px-3 py-2 text-sm"><option value="email">email</option><option value="webhook">webhook</option></select><Button onClick={createChannel} disabled={!canManageNotifications}>Add channel</Button></div></div>
+            {channels.length === 0 ? <p className="mt-4 text-slate-400">No notification channels configured.</p> : <div className="mt-4 space-y-3">{channels.map((channel) => <div key={channel.id} className="rounded-xl bg-slate-950 p-4"><div className="flex items-center justify-between gap-3"><div><p className="font-medium">{channel.name}</p><p className="text-sm text-slate-400">{channel.channel_type} · {channel.enabled ? "enabled" : "disabled"}</p></div><Button variant="secondary" disabled={!canManageNotifications} onClick={() => toggleChannel(channel)}>{channel.enabled ? "Disable" : "Enable"}</Button></div><pre className="mt-3 overflow-auto rounded-lg bg-slate-900 p-3 text-xs text-slate-400">{JSON.stringify(channel.config, null, 2)}</pre></div>)}</div>}
           </div>
 
           <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
-            <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-semibold">Notification rules</h2><Button onClick={createRule}>Add rule</Button></div>
-            {rules.length === 0 ? <p className="mt-4 text-slate-400">No notification rules configured.</p> : <div className="mt-4 space-y-3">{rules.map((rule) => <div key={rule.id} className="rounded-xl bg-slate-950 p-4"><div className="flex items-center justify-between gap-3"><div><p className="font-medium">{rule.name}</p><p className="text-sm text-slate-400">{rule.enabled ? "enabled" : "disabled"} · severities {rule.severity_filter.join(", ") || "all"}</p><p className="text-xs text-slate-500">Rule keys {rule.alert_rule_type_filter.join(", ") || "all"}</p></div><Button variant="secondary" onClick={() => toggleRule(rule)}>{rule.enabled ? "Disable" : "Enable"}</Button></div></div>)}</div>}
+            <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-semibold">Notification rules</h2><Button onClick={createRule} disabled={!canManageNotifications}>Add rule</Button></div>
+            {rules.length === 0 ? <p className="mt-4 text-slate-400">No notification rules configured.</p> : <div className="mt-4 space-y-3">{rules.map((rule) => <div key={rule.id} className="rounded-xl bg-slate-950 p-4"><div className="flex items-center justify-between gap-3"><div><p className="font-medium">{rule.name}</p><p className="text-sm text-slate-400">{rule.enabled ? "enabled" : "disabled"} · severities {rule.severity_filter.join(", ") || "all"}</p><p className="text-xs text-slate-500">Rule keys {rule.alert_rule_type_filter.join(", ") || "all"}</p></div><Button variant="secondary" disabled={!canManageNotifications} onClick={() => toggleRule(rule)}>{rule.enabled ? "Disable" : "Enable"}</Button></div></div>)}</div>}
           </div>
+        </div>
+
+
+
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-semibold">Users</h2><Button disabled={!canManageUsers} onClick={async () => { const email = window.prompt("User email", "new-user@example.com") ?? ""; const password = window.prompt("Temporary password", "ChangeMeNow!12345") ?? ""; const role = window.prompt("Role", "viewer") ?? "viewer"; if (email && password) { await postJsonBody<UserAccount>("/users", { email, password, role }); await load(); } }}>Add user</Button></div>
+          {!canManageUsers && <p className="mt-3 rounded-xl border border-amber-900 bg-amber-950/30 p-3 text-sm text-amber-200">Your role cannot manage users.</p>}
+          {users.length === 0 ? <p className="mt-4 text-slate-400">No users visible for this account.</p> : <div className="mt-4 overflow-auto"><table className="w-full text-sm"><thead className="text-left text-slate-400"><tr><th className="p-2">Email</th><th className="p-2">Role</th><th className="p-2">Status</th></tr></thead><tbody>{users.map((user) => <tr key={user.id} className="border-t border-slate-800"><td className="p-2">{user.email}</td><td className="p-2">{user.role}</td><td className="p-2">{user.is_active ? "enabled" : "disabled"}</td></tr>)}</tbody></table></div>}
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">

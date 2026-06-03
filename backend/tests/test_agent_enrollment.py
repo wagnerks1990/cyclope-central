@@ -8,6 +8,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.core.security import hash_password
 from app.core.token_hashing import hash_token
 from app.db.base import Base
 from app.db.session import get_db
@@ -20,6 +21,7 @@ from app.models.device_inventory import DeviceInventory
 from app.models.enrollment_token import EnrollmentToken
 from app.models.installed_software import InstalledSoftware
 from app.models.organization import Organization
+from app.models.user import User
 
 
 @pytest.fixture()
@@ -55,6 +57,26 @@ def create_org(db: Session) -> Organization:
     db.add(org)
     db.commit()
     return org
+
+
+def auth_headers(
+    db: Session, org: Organization, *, role: str = "owner", email: str | None = None
+) -> dict[str, str]:
+    user = User(
+        organization_id=org.id,
+        email=email or f"{role}-{org.slug}@example.test",
+        hashed_password=hash_password("CorrectHorseBatteryStaple!1"),
+        role=role,
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    response = TestClient(app).post(
+        "/api/auth/login",
+        json={"email": user.email, "password": "CorrectHorseBatteryStaple!1"},
+    )
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
 
 def create_enrollment_token(
@@ -95,6 +117,7 @@ def test_enrollment_success_creates_device_agent_and_audit_log(
     client: TestClient, db: Session
 ) -> None:
     org = create_org(db)
+    client.headers.update(auth_headers(db, org))
     token = create_enrollment_token(db, org)
 
     response = client.post("/api/agent/enroll", json=enroll_payload())
@@ -125,6 +148,7 @@ def test_enrollment_success_creates_device_agent_and_audit_log(
 
 def test_expired_enrollment_token_is_rejected(client: TestClient, db: Session) -> None:
     org = create_org(db)
+    client.headers.update(auth_headers(db, org))
     create_enrollment_token(db, org, expires_delta=timedelta(seconds=-1))
 
     response = client.post("/api/agent/enroll", json=enroll_payload())
@@ -135,6 +159,7 @@ def test_expired_enrollment_token_is_rejected(client: TestClient, db: Session) -
 
 def test_revoked_enrollment_token_is_rejected(client: TestClient, db: Session) -> None:
     org = create_org(db)
+    client.headers.update(auth_headers(db, org))
     create_enrollment_token(db, org, revoked=True)
 
     response = client.post("/api/agent/enroll", json=enroll_payload())
@@ -145,6 +170,7 @@ def test_revoked_enrollment_token_is_rejected(client: TestClient, db: Session) -
 
 def test_max_usage_enrollment_token_is_rejected(client: TestClient, db: Session) -> None:
     org = create_org(db)
+    client.headers.update(auth_headers(db, org))
     create_enrollment_token(db, org, max_uses=1, uses=1)
 
     response = client.post("/api/agent/enroll", json=enroll_payload())
@@ -155,6 +181,7 @@ def test_max_usage_enrollment_token_is_rejected(client: TestClient, db: Session)
 
 def test_failed_device_auth_uses_generic_error(client: TestClient, db: Session) -> None:
     org = create_org(db)
+    client.headers.update(auth_headers(db, org))
     create_enrollment_token(db, org)
     enroll = client.post("/api/agent/enroll", json=enroll_payload()).json()
 
@@ -178,6 +205,7 @@ def test_successful_checkin_updates_device_and_records_audit(
     client: TestClient, db: Session
 ) -> None:
     org = create_org(db)
+    client.headers.update(auth_headers(db, org))
     create_enrollment_token(db, org)
     enroll = client.post("/api/agent/enroll", json=enroll_payload()).json()
 
@@ -258,6 +286,7 @@ def test_inventory_checkin_upserts_latest_inventory_and_retrieval_endpoints(
     client: TestClient, db: Session
 ) -> None:
     org = create_org(db)
+    client.headers.update(auth_headers(db, org))
     create_enrollment_token(db, org)
     enroll = client.post("/api/agent/enroll", json=enroll_payload()).json()
 
@@ -380,6 +409,7 @@ def post_inventory_checkin(
 
 def test_default_rule_evaluation_creates_expected_alerts(client: TestClient, db: Session) -> None:
     org = create_org(db)
+    client.headers.update(auth_headers(db, org))
     create_enrollment_token(db, org)
     enroll = client.post("/api/agent/enroll", json=enroll_payload()).json()
 
@@ -398,6 +428,7 @@ def test_default_rule_evaluation_creates_expected_alerts(client: TestClient, db:
 
 def test_duplicate_alert_prevention_records_repeated_event(client: TestClient, db: Session) -> None:
     org = create_org(db)
+    client.headers.update(auth_headers(db, org))
     create_enrollment_token(db, org)
     enroll = client.post("/api/agent/enroll", json=enroll_payload()).json()
 
@@ -413,6 +444,7 @@ def test_duplicate_alert_prevention_records_repeated_event(client: TestClient, d
 
 def test_alert_auto_resolution_when_condition_clears(client: TestClient, db: Session) -> None:
     org = create_org(db)
+    client.headers.update(auth_headers(db, org))
     create_enrollment_token(db, org)
     enroll = client.post("/api/agent/enroll", json=enroll_payload()).json()
 
@@ -431,6 +463,7 @@ def test_alert_auto_resolution_when_condition_clears(client: TestClient, db: Ses
 
 def test_acknowledge_and_resolve_alert_endpoints(client: TestClient, db: Session) -> None:
     org = create_org(db)
+    client.headers.update(auth_headers(db, org))
     create_enrollment_token(db, org)
     enroll = client.post("/api/agent/enroll", json=enroll_payload()).json()
     post_inventory_checkin(client, enroll, low_disk=True, defender_enabled=True)
@@ -455,6 +488,7 @@ def test_acknowledge_and_resolve_alert_endpoints(client: TestClient, db: Session
 
 def test_job_creation_poll_start_complete_and_events(client: TestClient, db: Session) -> None:
     org = create_org(db)
+    client.headers.update(auth_headers(db, org))
     create_enrollment_token(db, org)
     enroll = client.post("/api/agent/enroll", json=enroll_payload()).json()
 
@@ -502,6 +536,7 @@ def test_job_creation_poll_start_complete_and_events(client: TestClient, db: Ses
 
 def test_invalid_job_type_rejected(client: TestClient, db: Session) -> None:
     org = create_org(db)
+    client.headers.update(auth_headers(db, org))
     create_enrollment_token(db, org)
     enroll = client.post("/api/agent/enroll", json=enroll_payload()).json()
 
@@ -515,6 +550,7 @@ def test_invalid_job_type_rejected(client: TestClient, db: Session) -> None:
 
 def test_job_cancel_and_expiration(client: TestClient, db: Session) -> None:
     org = create_org(db)
+    client.headers.update(auth_headers(db, org))
     create_enrollment_token(db, org)
     enroll = client.post("/api/agent/enroll", json=enroll_payload()).json()
     created = client.post(
@@ -543,6 +579,7 @@ def test_job_cancel_and_expiration(client: TestClient, db: Session) -> None:
 
 def test_agent_cannot_poll_or_update_other_device_jobs(client: TestClient, db: Session) -> None:
     org = create_org(db)
+    client.headers.update(auth_headers(db, org))
     create_enrollment_token(db, org, token="enroll-token-value-abcdef", max_uses=2)
     first = client.post(
         "/api/agent/enroll", json=enroll_payload("enroll-token-value-abcdef")
@@ -570,6 +607,7 @@ def test_notification_rule_matching_enqueues_delivery_on_new_alert(
     client: TestClient, db: Session
 ) -> None:
     org = create_org(db)
+    client.headers.update(auth_headers(db, org))
     create_enrollment_token(db, org)
     channel = client.post(
         "/api/notification-channels",
@@ -611,6 +649,7 @@ def test_repeated_detection_does_not_duplicate_notification_delivery(
     client: TestClient, db: Session
 ) -> None:
     org = create_org(db)
+    client.headers.update(auth_headers(db, org))
     create_enrollment_token(db, org)
     channel = client.post(
         "/api/notification-channels",
@@ -644,6 +683,7 @@ def test_webhook_payload_shape(client: TestClient, db: Session) -> None:
     from app.models.alert import Alert
 
     org = create_org(db)
+    client.headers.update(auth_headers(db, org))
     create_enrollment_token(db, org)
     enroll = client.post("/api/agent/enroll", json=enroll_payload()).json()
     post_inventory_checkin(client, enroll, low_disk=True, defender_enabled=True)
@@ -660,6 +700,7 @@ def test_webhook_payload_shape(client: TestClient, db: Session) -> None:
 
 def test_notification_channel_masks_secret_headers(client: TestClient, db: Session) -> None:
     org = create_org(db)
+    client.headers.update(auth_headers(db, org))
     response = client.post(
         "/api/notification-channels",
         json={
@@ -679,3 +720,166 @@ def test_notification_channel_masks_secret_headers(client: TestClient, db: Sessi
     assert config["headers"]["X-Trace"] == "********"
     listed = client.get("/api/notification-channels").json()[0]
     assert listed["config"]["headers"]["Authorization"] == "********"
+
+
+def test_login_success_failure_and_password_hashing(client: TestClient, db: Session) -> None:
+    org = create_org(db)
+    user = User(
+        organization_id=org.id,
+        email="login@example.test",
+        hashed_password=hash_password("CorrectHorseBatteryStaple!1"),
+        role="viewer",
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+
+    success = client.post(
+        "/api/auth/login",
+        json={"email": "login@example.test", "password": "CorrectHorseBatteryStaple!1"},
+    )
+    failure = client.post(
+        "/api/auth/login",
+        json={"email": "login@example.test", "password": "wrong-password"},
+    )
+
+    assert success.status_code == 200
+    assert success.json()["access_token"]
+    assert success.json()["refresh_token"]
+    assert user.hashed_password != "CorrectHorseBatteryStaple!1"
+    assert "hashed_password" not in success.text
+    assert failure.status_code == 401
+
+
+def test_refresh_token_rotation_and_logout(client: TestClient, db: Session) -> None:
+    org = create_org(db)
+    headers = auth_headers(db, org, role="viewer", email="refresh@example.test")
+    me = client.get("/api/auth/me", headers=headers)
+    assert me.status_code == 200
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "refresh@example.test", "password": "CorrectHorseBatteryStaple!1"},
+    ).json()
+
+    refreshed = client.post("/api/auth/refresh", json={"refresh_token": login["refresh_token"]})
+    assert refreshed.status_code == 200
+    assert refreshed.json()["refresh_token"] != login["refresh_token"]
+    reused = client.post("/api/auth/refresh", json={"refresh_token": login["refresh_token"]})
+    assert reused.status_code == 401
+    logout = client.post(
+        "/api/auth/logout", json={"refresh_token": refreshed.json()["refresh_token"]}
+    )
+    assert logout.status_code == 200
+    after_logout = client.post(
+        "/api/auth/refresh", json={"refresh_token": refreshed.json()["refresh_token"]}
+    )
+    assert after_logout.status_code == 401
+
+
+def test_role_permission_checks_for_jobs_and_notifications(client: TestClient, db: Session) -> None:
+    org = create_org(db)
+    create_enrollment_token(db, org)
+    owner_headers = auth_headers(db, org, role="owner", email="owner-rbac@example.test")
+    enroll = client.post("/api/agent/enroll", json=enroll_payload()).json()
+
+    viewer_headers = auth_headers(db, org, role="viewer", email="viewer-rbac@example.test")
+    technician_headers = auth_headers(
+        db, org, role="technician", email="technician-rbac@example.test"
+    )
+    admin_headers = auth_headers(db, org, role="admin", email="admin-rbac@example.test")
+
+    viewer_job = client.post(
+        f"/api/devices/{enroll['device_id']}/jobs",
+        json={"job_type": "ping"},
+        headers=viewer_headers,
+    )
+    technician_job = client.post(
+        f"/api/devices/{enroll['device_id']}/jobs",
+        json={"job_type": "ping"},
+        headers=technician_headers,
+    )
+    technician_channel = client.post(
+        "/api/notification-channels",
+        json={
+            "organization_id": str(org.id),
+            "name": "Tech Webhook",
+            "channel_type": "webhook",
+            "config": {"url": "https://hooks.example.test/alerts"},
+        },
+        headers=technician_headers,
+    )
+    admin_channel = client.post(
+        "/api/notification-channels",
+        json={
+            "organization_id": str(org.id),
+            "name": "Admin Webhook",
+            "channel_type": "webhook",
+            "config": {"url": "https://hooks.example.test/alerts"},
+        },
+        headers=admin_headers,
+    )
+    users_as_admin = client.get("/api/users", headers=admin_headers)
+    users_as_owner = client.get("/api/users", headers=owner_headers)
+
+    assert viewer_job.status_code == 403
+    assert technician_job.status_code == 201
+    assert technician_channel.status_code == 403
+    assert admin_channel.status_code == 201
+    assert users_as_admin.status_code == 403
+    assert users_as_owner.status_code == 200
+
+
+def test_cross_tenant_access_prevention(client: TestClient, db: Session) -> None:
+    org_a = create_org(db)
+    org_b = Organization(name="Other MSP", slug="other")
+    db.add(org_b)
+    db.commit()
+    create_enrollment_token(db, org_a)
+    headers_a = auth_headers(db, org_a, role="owner", email="owner-a@example.test")
+    headers_b = auth_headers(db, org_b, role="owner", email="owner-b@example.test")
+    enroll = client.post("/api/agent/enroll", json=enroll_payload()).json()
+
+    same_tenant = client.get(f"/api/devices/{enroll['device_id']}", headers=headers_a)
+    other_tenant = client.get(f"/api/devices/{enroll['device_id']}", headers=headers_b)
+    cross_tenant_job = client.post(
+        f"/api/devices/{enroll['device_id']}/jobs",
+        json={"job_type": "ping"},
+        headers=headers_b,
+    )
+
+    assert same_tenant.status_code == 200
+    assert other_tenant.status_code == 404
+    assert cross_tenant_job.status_code == 404
+
+
+def test_owner_can_manage_users_without_exposing_password_hashes(
+    client: TestClient, db: Session
+) -> None:
+    org = create_org(db)
+    owner_headers = auth_headers(db, org, role="owner", email="owner-users@example.test")
+
+    created = client.post(
+        "/api/users",
+        json={
+            "email": "new-viewer@example.test",
+            "password": "CorrectHorseBatteryStaple!2",
+            "role": "viewer",
+        },
+        headers=owner_headers,
+    )
+    assert created.status_code == 201
+    assert "hashed_password" not in created.text
+    user_id = created.json()["id"]
+
+    patched = client.patch(
+        f"/api/users/{user_id}", json={"role": "technician"}, headers=owner_headers
+    )
+    disabled = client.post(f"/api/users/{user_id}/disable", headers=owner_headers)
+    enabled = client.post(f"/api/users/{user_id}/enable", headers=owner_headers)
+
+    assert patched.status_code == 200
+    assert patched.json()["role"] == "technician"
+    assert disabled.status_code == 200
+    assert disabled.json()["is_active"] is False
+    assert enabled.status_code == 200
+    assert enabled.json()["is_active"] is True

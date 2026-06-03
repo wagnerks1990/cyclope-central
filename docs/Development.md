@@ -47,6 +47,32 @@ go run ./cmd/cyclope-agent
 
 Use `cyclope-agent.example.json` as the starting point for local configuration. The current agent only emits check-in stub logs.
 
+
+## Local Bootstrap User
+
+For local development, create an organization and first owner in a backend shell or migration seed, then use `/login` in the dashboard:
+
+```bash
+cd backend
+python - <<'PY'
+from app.core.security import hash_password
+from app.db.session import SessionLocal
+from app.models.organization import Organization
+from app.models.user import User
+
+db = SessionLocal()
+org = Organization(name='Default MSP', slug='default')
+db.add(org)
+db.flush()
+db.add(User(organization_id=org.id, email='owner@example.test', hashed_password=hash_password('ChangeMeNow!12345'), role='owner', is_active=True))
+db.commit()
+print(org.id)
+db.close()
+PY
+```
+
+Use that account to sign in, create lower-privilege users, and verify RBAC behavior. Never seed plaintext passwords or token values into source control.
+
 ## Enrollment and Check-in Commands
 
 ```bash

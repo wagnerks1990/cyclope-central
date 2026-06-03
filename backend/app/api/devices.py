@@ -20,6 +20,7 @@ from app.api.schemas import (
     UpdateStatusResponse,
 )
 from app.core.config import settings
+from app.core.security import require_permission
 from app.db.session import get_db
 from app.models.alert import Alert
 from app.models.device import Device
@@ -30,6 +31,7 @@ from app.models.installed_software import InstalledSoftware
 from app.models.network_interface_inventory import NetworkInterfaceInventory
 from app.models.security_status import SecurityStatus
 from app.models.update_status import UpdateStatus
+from app.models.user import User
 
 router = APIRouter(prefix="/devices", tags=["devices"])
 
@@ -65,17 +67,23 @@ def _summary(device: Device) -> DeviceSummary:
     )
 
 
-def _get_device_or_404(db: Session, device_id: UUID) -> Device:
+def _get_device_or_404(db: Session, device_id: UUID, organization_id: UUID) -> Device:
     device = db.get(Device, device_id)
-    if device is None:
+    if device is None or device.organization_id != organization_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
     return device
 
 
 @router.get("", response_model=list[DeviceSummary])
-def list_devices(db: Session = Depends(get_db)) -> list[DeviceSummary]:
+def list_devices(
+    current: User = Depends(require_permission("devices:read")), db: Session = Depends(get_db)
+) -> list[DeviceSummary]:
     """Return enrolled devices for dashboard inventory views."""
-    devices = db.scalars(select(Device).order_by(Device.hostname)).all()
+    devices = db.scalars(
+        select(Device)
+        .where(Device.organization_id == current.organization_id)
+        .order_by(Device.hostname)
+    ).all()
     for device in devices:
         _sync_status(device)
     db.commit()
@@ -83,9 +91,13 @@ def list_devices(db: Session = Depends(get_db)) -> list[DeviceSummary]:
 
 
 @router.get("/{device_id}", response_model=DeviceDetail)
-def get_device(device_id: UUID, db: Session = Depends(get_db)) -> DeviceDetail:
+def get_device(
+    device_id: UUID,
+    current: User = Depends(require_permission("devices:read")),
+    db: Session = Depends(get_db),
+) -> DeviceDetail:
     """Return a single device with latest check-in telemetry."""
-    device = _get_device_or_404(db, device_id)
+    device = _get_device_or_404(db, device_id, current.organization_id)
     _sync_status(device)
     db.commit()
     latest = db.scalar(
@@ -113,9 +125,13 @@ def get_device(device_id: UUID, db: Session = Depends(get_db)) -> DeviceDetail:
 
 
 @router.get("/{device_id}/inventory", response_model=DeviceInventoryResponse)
-def get_device_inventory(device_id: UUID, db: Session = Depends(get_db)) -> DeviceInventoryResponse:
+def get_device_inventory(
+    device_id: UUID,
+    current: User = Depends(require_permission("devices:read")),
+    db: Session = Depends(get_db),
+) -> DeviceInventoryResponse:
     """Return latest hardware, disk, and network inventory for a device."""
-    _get_device_or_404(db, device_id)
+    _get_device_or_404(db, device_id, current.organization_id)
     inventory = db.scalar(select(DeviceInventory).where(DeviceInventory.device_id == device_id))
     if inventory is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inventory not found")
@@ -163,10 +179,12 @@ def get_device_inventory(device_id: UUID, db: Session = Depends(get_db)) -> Devi
 
 @router.get("/{device_id}/software", response_model=SoftwareInventoryResponse)
 def get_device_software(
-    device_id: UUID, db: Session = Depends(get_db)
+    device_id: UUID,
+    current: User = Depends(require_permission("devices:read")),
+    db: Session = Depends(get_db),
 ) -> SoftwareInventoryResponse:
     """Return latest installed software inventory for a device."""
-    _get_device_or_404(db, device_id)
+    _get_device_or_404(db, device_id, current.organization_id)
     inventory = db.scalar(select(DeviceInventory).where(DeviceInventory.device_id == device_id))
     software = db.scalars(
         select(InstalledSoftware)
@@ -190,9 +208,13 @@ def get_device_software(
 
 
 @router.get("/{device_id}/security", response_model=SecurityStatusResponse)
-def get_device_security(device_id: UUID, db: Session = Depends(get_db)) -> SecurityStatusResponse:
+def get_device_security(
+    device_id: UUID,
+    current: User = Depends(require_permission("devices:read")),
+    db: Session = Depends(get_db),
+) -> SecurityStatusResponse:
     """Return latest endpoint security posture for a device."""
-    _get_device_or_404(db, device_id)
+    _get_device_or_404(db, device_id, current.organization_id)
     security_row = db.scalar(select(SecurityStatus).where(SecurityStatus.device_id == device_id))
     if security_row is None:
         raise HTTPException(
@@ -211,9 +233,13 @@ def get_device_security(device_id: UUID, db: Session = Depends(get_db)) -> Secur
 
 
 @router.get("/{device_id}/updates", response_model=UpdateStatusResponse)
-def get_device_updates(device_id: UUID, db: Session = Depends(get_db)) -> UpdateStatusResponse:
+def get_device_updates(
+    device_id: UUID,
+    current: User = Depends(require_permission("devices:read")),
+    db: Session = Depends(get_db),
+) -> UpdateStatusResponse:
     """Return latest update and pending reboot posture for a device."""
-    _get_device_or_404(db, device_id)
+    _get_device_or_404(db, device_id, current.organization_id)
     update_row = db.scalar(select(UpdateStatus).where(UpdateStatus.device_id == device_id))
     if update_row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Update status not found")
@@ -228,10 +254,16 @@ def get_device_updates(device_id: UUID, db: Session = Depends(get_db)) -> Update
 
 
 @router.get("/{device_id}/alerts", response_model=list[AlertResponse])
-def get_device_alerts(device_id: UUID, db: Session = Depends(get_db)) -> list[AlertResponse]:
+def get_device_alerts(
+    device_id: UUID,
+    current: User = Depends(require_permission("alerts:read")),
+    db: Session = Depends(get_db),
+) -> list[AlertResponse]:
     """Return active and historical alerts for a device."""
-    _get_device_or_404(db, device_id)
+    _get_device_or_404(db, device_id, current.organization_id)
     alerts = db.scalars(
-        select(Alert).where(Alert.device_id == device_id).order_by(desc(Alert.last_seen_at))
+        select(Alert)
+        .where(Alert.device_id == device_id, Alert.organization_id == current.organization_id)
+        .order_by(desc(Alert.last_seen_at))
     ).all()
     return [_alert_response(db, alert) for alert in alerts]

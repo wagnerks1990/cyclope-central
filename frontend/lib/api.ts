@@ -1,5 +1,34 @@
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
 
+const ACCESS_TOKEN_KEY = "cyclope.access_token";
+const REFRESH_TOKEN_KEY = "cyclope.refresh_token";
+
+export function getAccessToken() {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(ACCESS_TOKEN_KEY);
+}
+
+export function setAuthTokens(accessToken: string, refreshToken: string) {
+  window.localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+  window.localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+}
+
+export function getRefreshToken() {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(REFRESH_TOKEN_KEY);
+}
+
+export function clearAuthTokens() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(ACCESS_TOKEN_KEY);
+  window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+}
+
+function authHeaders(extra?: HeadersInit): HeadersInit {
+  const token = getAccessToken();
+  return token ? { ...extra, Authorization: `Bearer ${token}` } : { ...extra };
+}
+
 export type DeviceSummary = {
   id: string;
   hostname: string;
@@ -96,7 +125,7 @@ export type UpdateStatus = {
 };
 
 export async function fetchJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, { cache: "no-store" });
+  const response = await fetch(`${API_BASE_URL}${path}`, { cache: "no-store", headers: authHeaders() });
   if (!response.ok) {
     throw new Error(`Request failed with status ${response.status}`);
   }
@@ -140,7 +169,7 @@ export type DashboardSummary = {
 };
 
 export async function postJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, { method: "POST" });
+  const response = await fetch(`${API_BASE_URL}${path}`, { method: "POST", headers: authHeaders() });
   if (!response.ok) {
     throw new Error(`Request failed with status ${response.status}`);
   }
@@ -185,7 +214,7 @@ export type AgentJob = {
 export async function postJsonBody<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body)
   });
   if (!response.ok) {
@@ -234,11 +263,68 @@ export type NotificationDelivery = {
 export async function patchJsonBody<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body)
   });
   if (!response.ok) {
     throw new Error(`Request failed with status ${response.status}`);
   }
   return response.json() as Promise<T>;
+}
+
+export type Organization = {
+  id: string;
+  name: string;
+  slug: string;
+};
+
+export type UserAccount = {
+  id: string;
+  organization_id: string;
+  email: string;
+  role: "owner" | "admin" | "technician" | "viewer";
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AuthSession = {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  user: UserAccount;
+  organization: Organization;
+  permissions: string[];
+};
+
+export type CurrentUser = {
+  user: UserAccount;
+  organization: Organization;
+  permissions: string[];
+};
+
+export async function login(email: string, password: string): Promise<AuthSession> {
+  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password })
+  });
+  if (!response.ok) {
+    throw new Error("Invalid email or password");
+  }
+  const session = await response.json() as AuthSession;
+  setAuthTokens(session.access_token, session.refresh_token);
+  return session;
+}
+
+export async function logout(): Promise<void> {
+  const refreshToken = getRefreshToken();
+  if (refreshToken) {
+    await fetch(`${API_BASE_URL}/auth/logout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken })
+    }).catch(() => undefined);
+  }
+  clearAuthTokens();
 }

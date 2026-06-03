@@ -15,11 +15,13 @@ from app.api.schemas import (
 )
 from app.core.alerts import ALERT_SEVERITIES
 from app.core.notifications import mask_channel_config, validate_channel_config
+from app.core.security import require_permission
 from app.db.session import get_db
 from app.models.notification_channel import NotificationChannel
 from app.models.notification_delivery import NotificationDelivery
 from app.models.notification_rule import NotificationRule
 from app.models.organization import Organization
+from app.models.user import User
 
 router = APIRouter(tags=["notifications"])
 
@@ -92,11 +94,14 @@ def _validate_rule_filters(
 
 @router.get("/notification-channels", response_model=list[NotificationChannelResponse])
 def list_channels(
-    organization_id: UUID | None = None, db: Session = Depends(get_db)
+    current: User = Depends(require_permission("notifications:manage")),
+    db: Session = Depends(get_db),
 ) -> list[NotificationChannelResponse]:
-    query = select(NotificationChannel).order_by(desc(NotificationChannel.created_at))
-    if organization_id is not None:
-        query = query.where(NotificationChannel.organization_id == organization_id)
+    query = (
+        select(NotificationChannel)
+        .where(NotificationChannel.organization_id == current.organization_id)
+        .order_by(desc(NotificationChannel.created_at))
+    )
     return [channel_response(channel) for channel in db.scalars(query).all()]
 
 
@@ -106,9 +111,15 @@ def list_channels(
     status_code=status.HTTP_201_CREATED,
 )
 def create_channel(
-    payload: NotificationChannelCreateRequest, db: Session = Depends(get_db)
+    payload: NotificationChannelCreateRequest,
+    current: User = Depends(require_permission("notifications:manage")),
+    db: Session = Depends(get_db),
 ) -> NotificationChannelResponse:
-    _require_org(db, payload.organization_id)
+    if payload.organization_id != current.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Invalid organization scope"
+        )
+    _require_org(db, current.organization_id)
     try:
         config = validate_channel_config(payload.channel_type, payload.config)
     except ValueError as exc:
@@ -128,10 +139,13 @@ def create_channel(
 
 @router.patch("/notification-channels/{channel_id}", response_model=NotificationChannelResponse)
 def patch_channel(
-    channel_id: UUID, payload: NotificationChannelPatchRequest, db: Session = Depends(get_db)
+    channel_id: UUID,
+    payload: NotificationChannelPatchRequest,
+    current: User = Depends(require_permission("notifications:manage")),
+    db: Session = Depends(get_db),
 ) -> NotificationChannelResponse:
     channel = db.get(NotificationChannel, channel_id)
-    if channel is None:
+    if channel is None or channel.organization_id != current.organization_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Notification channel not found"
         )
@@ -151,11 +165,14 @@ def patch_channel(
 
 @router.get("/notification-rules", response_model=list[NotificationRuleResponse])
 def list_rules(
-    organization_id: UUID | None = None, db: Session = Depends(get_db)
+    current: User = Depends(require_permission("notifications:manage")),
+    db: Session = Depends(get_db),
 ) -> list[NotificationRuleResponse]:
-    query = select(NotificationRule).order_by(desc(NotificationRule.created_at))
-    if organization_id is not None:
-        query = query.where(NotificationRule.organization_id == organization_id)
+    query = (
+        select(NotificationRule)
+        .where(NotificationRule.organization_id == current.organization_id)
+        .order_by(desc(NotificationRule.created_at))
+    )
     return [rule_response(rule) for rule in db.scalars(query).all()]
 
 
@@ -165,9 +182,15 @@ def list_rules(
     status_code=status.HTTP_201_CREATED,
 )
 def create_rule(
-    payload: NotificationRuleCreateRequest, db: Session = Depends(get_db)
+    payload: NotificationRuleCreateRequest,
+    current: User = Depends(require_permission("notifications:manage")),
+    db: Session = Depends(get_db),
 ) -> NotificationRuleResponse:
-    _require_org(db, payload.organization_id)
+    if payload.organization_id != current.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Invalid organization scope"
+        )
+    _require_org(db, current.organization_id)
     channel_ids = _validate_rule_filters(
         payload.severity_filter, payload.channel_ids, db, payload.organization_id
     )
@@ -187,10 +210,13 @@ def create_rule(
 
 @router.patch("/notification-rules/{rule_id}", response_model=NotificationRuleResponse)
 def patch_rule(
-    rule_id: UUID, payload: NotificationRulePatchRequest, db: Session = Depends(get_db)
+    rule_id: UUID,
+    payload: NotificationRulePatchRequest,
+    current: User = Depends(require_permission("notifications:manage")),
+    db: Session = Depends(get_db),
 ) -> NotificationRuleResponse:
     rule = db.get(NotificationRule, rule_id)
-    if rule is None:
+    if rule is None or rule.organization_id != current.organization_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Notification rule not found"
         )
@@ -220,9 +246,13 @@ def patch_rule(
 
 @router.get("/notifications/deliveries", response_model=list[NotificationDeliveryResponse])
 def list_deliveries(
-    organization_id: UUID | None = None, db: Session = Depends(get_db)
+    current: User = Depends(require_permission("notifications:manage")),
+    db: Session = Depends(get_db),
 ) -> list[NotificationDeliveryResponse]:
-    query = select(NotificationDelivery).order_by(desc(NotificationDelivery.created_at)).limit(100)
-    if organization_id is not None:
-        query = query.where(NotificationDelivery.organization_id == organization_id)
+    query = (
+        select(NotificationDelivery)
+        .where(NotificationDelivery.organization_id == current.organization_id)
+        .order_by(desc(NotificationDelivery.created_at))
+        .limit(100)
+    )
     return [delivery_response(db, delivery) for delivery in db.scalars(query).all()]
